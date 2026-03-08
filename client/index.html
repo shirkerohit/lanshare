@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LanShare — Instant Device File Transfer</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <div id="app">
+
+    <header id="header">
+      <div class="header-left">
+        <div class="logo">
+          <span class="logo-bolt">⚡</span>
+          <span class="logo-text">LanShare</span>
+        </div>
+      </div>
+      <div class="header-center">
+        <div class="live-metrics">
+          <div class="metric-pill" title="Upload"><span class="mpill-icon">↑</span><span id="metric-up">0 B/s</span></div>
+          <div class="metric-pill" title="Download"><span class="mpill-icon">↓</span><span id="metric-down">0 B/s</span></div>
+          <div class="metric-pill" title="Peers"><span class="mpill-icon">◈</span><span id="metric-peers">0</span> peers</div>
+          <div class="metric-pill" title="Avg latency"><span class="mpill-icon">◎</span><span id="metric-latency">--</span></div>
+        </div>
+      </div>
+      <div class="header-right">
+        <div class="self-identity">
+          <canvas id="self-avatar" width="32" height="32"></canvas>
+          <span id="self-name">--</span>
+        </div>
+      </div>
+    </header>
+
+    <nav id="tab-nav">
+      <button class="tab-btn active" data-tab="devices">Devices</button>
+      <button class="tab-btn" data-tab="network">Network</button>
+      <button class="tab-btn" data-tab="chat">Chat</button>
+      <button class="tab-btn" data-tab="whiteboard">Whiteboard</button>
+      <button class="tab-btn" data-tab="speedtest">Speed Test</button>
+      <button class="tab-btn" data-tab="inspector">Inspector</button>
+    </nav>
+
+    <main id="main">
+
+      <!-- DEVICES -->
+      <div class="panel active" id="panel-devices">
+        <div class="local-bar">
+          <canvas class="avatar-canvas" id="local-avatar" width="52" height="52"></canvas>
+          <div class="local-info">
+            <div class="local-name" id="local-name-display">--</div>
+            <div class="local-sub">this device</div>
+          </div>
+          <div class="local-badge">YOU</div>
+        </div>
+
+        <div id="no-peers" class="empty-state">
+          <div class="empty-rings">
+            <div class="ring r1"></div>
+            <div class="ring r2"></div>
+            <div class="ring r3"></div>
+            <div class="ring-dot">📡</div>
+          </div>
+          <div class="empty-title">Scanning for devices...</div>
+          <div class="empty-sub">Open this page on another device on the same Wi-Fi network</div>
+          <div class="url-chip" id="url-display"></div>
+        </div>
+
+        <div id="peers-grid" class="peers-grid"></div>
+        <input type="file" id="file-input" multiple hidden />
+      </div>
+
+      <!-- NETWORK -->
+      <div class="panel" id="panel-network">
+        <div class="panel-header">
+          <h2>Network Topology</h2>
+          <p>Live peer-to-peer connection map</p>
+        </div>
+        <div class="viz-container">
+          <canvas id="network-viz"></canvas>
+        </div>
+      </div>
+
+      <!-- CHAT -->
+      <div class="panel panel-chat-layout" id="panel-chat">
+        <div class="panel-header">
+          <h2>LAN Chat</h2>
+          <p>Session only &mdash; messages vanish when you close the tab</p>
+        </div>
+        <div id="chat-feed" class="chat-feed"></div>
+        <div id="typing-indicator" class="typing-indicator hidden"></div>
+        <div class="chat-compose">
+          <input id="chat-input" type="text" placeholder="Message everyone..." autocomplete="off" />
+          <button id="chat-send">Send</button>
+        </div>
+      </div>
+
+      <!-- WHITEBOARD -->
+      <div class="panel panel-wb-layout" id="panel-whiteboard">
+        <div class="wb-toolbar">
+          <span class="wb-label">Color</span>
+          <input type="color" id="wb-color" value="#00ffcc" />
+          <span class="wb-label">Size</span>
+          <input type="range" id="wb-size" min="1" max="24" value="4" />
+          <span id="wb-size-num">4px</span>
+          <div style="flex:1"></div>
+          <button id="wb-clear" class="btn-clear">Clear</button>
+        </div>
+        <div class="wb-container">
+          <canvas id="whiteboard"></canvas>
+        </div>
+      </div>
+
+      <!-- SPEED TEST -->
+      <div class="panel" id="panel-speedtest">
+        <div class="panel-header">
+          <h2>Speed Test</h2>
+          <p>Click "Speed Test" on any device card to measure LAN throughput</p>
+        </div>
+        <div id="speedtest-running" class="st-running hidden">
+          <div class="st-spinner"></div>
+          <span>Running test...</span>
+        </div>
+        <div id="speedtest-history" class="st-history"></div>
+        <div id="speedtest-empty" class="st-empty">
+          <div class="st-empty-icon">⚡</div>
+          <p>No speed tests run yet.<br>Click <strong>Speed Test</strong> on a device card to start.</p>
+        </div>
+      </div>
+
+      <!-- INSPECTOR -->
+      <div class="panel" id="panel-inspector">
+        <div class="panel-header inspector-ph">
+          <div>
+            <h2>Packet Inspector</h2>
+            <p>Live log of WebRTC and transfer events</p>
+          </div>
+          <button id="inspector-clear" class="btn-sm">Clear log</button>
+        </div>
+        <div id="packet-log" class="packet-log-full"></div>
+      </div>
+
+    </main>
+
+    <div id="notifications" class="notifications"></div>
+  </div>
+
+  <script src="identity.js"></script>
+  <script src="webrtc.js"></script>
+  <script src="transfer.js"></script>
+  <script src="network.js"></script>
+  <script src="ui.js"></script>
+  <script src="app.js"></script>
+  <script>
+    document.getElementById('url-display').textContent = location.href;
+  </script>
+</body>
+</html>

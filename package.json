@@ -1,0 +1,18 @@
+{
+  "name": "lanshare",
+  "version": "1.0.0",
+  "description": "Lightning-fast browser-based LAN file sharing with WebRTC",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "dev": "node server/server.js"
+  },
+  "dependencies": {
+    "ws": "^8.16.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "keywords": ["lan", "file-sharing", "webrtc", "p2p", "airdrop"],
+  "license": "MIT"
+}
