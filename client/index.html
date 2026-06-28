@@ -51,7 +51,8 @@
         </div>
       </div>
       <div class="header-right">
-        <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle theme" title="Toggle theme">
+        <button id="theme-toggle" class="theme-toggle" type="button"
+          aria-label="Toggle theme" title="Toggle theme">
           <span class="theme-toggle-icon">☀</span>
           <span class="theme-toggle-label">Light</span>
         </button>
@@ -91,32 +92,33 @@
 
         <section id="manual-pairing" class="manual-pairing hidden">
           <div class="manual-head">
-            <div class="manual-mode-label">Static HTML mode: pair with codes
+            <div class="manual-head-left">
+              <div class="manual-mode-label">Pair with code</div>
             </div>
-            <button id="manual-toggle" class="manual-link-btn">Show
-              codes</button>
+            <div class="manual-head-actions">
+              <button id="manual-create-code" class="manual-btn">Generate &amp; Copy</button>
+              <button id="manual-toggle" class="manual-link-btn">Paste</button>
+            </div>
           </div>
 
-          <div class="manual-col">
-            <div class="manual-title">Your Code</div>
-            <button id="manual-create-code" class="manual-btn">Generate
-              Code</button>
-            <textarea id="manual-code" readonly
-              placeholder="Your connection code appears here"></textarea>
-            <button class="manual-copy" data-copy="manual-code">Copy
-              Code</button>
-          </div>
+          <div id="manual-copy-indicator" class="manual-copy-indicator hidden">Response code copied to clipboard.</div>
 
-          <div class="manual-col">
-            <div class="manual-title">Other Device Code</div>
+          <div class="manual-remote-panel hidden">
             <textarea id="manual-remote"
-              placeholder="Paste the other device's code here"></textarea>
-            <button id="manual-connect-code" class="manual-btn">Connect</button>
+              placeholder="Paste the other device's code"></textarea>
+            <div class="manual-remote-actions">
+              <button id="manual-connect-code"
+                class="manual-btn">Connect</button>
+              <button id="manual-close-remote"
+                class="manual-link-btn">Close</button>
+            </div>
           </div>
 
-          <div id="manual-status" class="manual-status">One device creates a
-            code. The other device pastes it, connects, then sends back the new
-            code that appears.</div>
+          <textarea id="manual-code" class="manual-hidden-code"
+            readonly></textarea>
+
+          <div id="manual-status" class="manual-status">Create a code on one
+            device, then paste it on the other.</div>
           <div id="known-devices" class="known-devices hidden"></div>
         </section>
 

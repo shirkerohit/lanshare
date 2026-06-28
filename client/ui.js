@@ -11,7 +11,7 @@ class UI {
     this.packetCount = 0;
     this.staticMode = false;
     this.theme = 'dark';
-    this.pairingExpanded = window.innerWidth > 640;
+    this.pairingExpanded = false;
   }
 
   init(localIdentity) {
@@ -106,6 +106,11 @@ class UI {
     this._saveManualDraft();
   }
 
+  revealRemotePanel() {
+    this.pairingExpanded = true;
+    this._applyPairingPanelState();
+  }
+
   clearRemoteCode() {
     const el = document.getElementById('manual-remote');
     if (el) el.value = '';
@@ -123,8 +128,22 @@ class UI {
     const panel = document.getElementById('manual-pairing');
     if (!panel) return;
 
-    document.getElementById('manual-create-code')?.addEventListener('click', () => {
-      this.onCreateCode?.();
+    document.getElementById('manual-create-code')?.addEventListener('click', async () => {
+      await this.onCreateCode?.();
+      const code = document.getElementById('manual-code')?.value?.trim();
+      if (!code) return;
+
+      try {
+        await navigator.clipboard?.writeText(code).catch(() => {
+          const target = document.getElementById('manual-code');
+          target?.select();
+          document.execCommand('copy');
+        });
+        this.showCopyIndicator('Code copied to clipboard. Paste it on the other device.');
+        this.setPairingStatus('Code created and copied.');
+      } catch {
+        this.setPairingStatus('Code created, but copying failed.', true);
+      }
     });
 
     document.getElementById('manual-connect-code')?.addEventListener('click', () => {
@@ -141,8 +160,19 @@ class UI {
       this._applyPairingPanelState();
     });
 
+    document.getElementById('manual-close-remote')?.addEventListener('click', () => {
+      this.pairingExpanded = false;
+      this._applyPairingPanelState();
+    });
+
     document.getElementById('manual-code')?.addEventListener('input', () => this._saveManualDraft());
-    document.getElementById('manual-remote')?.addEventListener('input', () => this._saveManualDraft());
+    const remoteEl = document.getElementById('manual-remote');
+    if (remoteEl) {
+      remoteEl.addEventListener('input', () => {
+        this._saveManualDraft();
+        this.hideCopyIndicator();
+      });
+    }
 
     document.getElementById('known-devices')?.addEventListener('click', (e) => {
       const btn = e.target.closest('[data-known-action]');
@@ -263,15 +293,40 @@ class UI {
     localStorage.setItem('lanshare_manual_remote', remote);
   }
 
+  showCopyIndicator(text = 'Response code copied to clipboard. please paste/share it with the other device.') {
+    const el = document.getElementById('manual-copy-indicator');
+    if (!el) {
+      this.showNotification(text, 'success');
+      return;
+    }
+    el.textContent = text;
+    el.classList.remove('hidden');
+    if (this._copyIndicatorTimeout) {
+      clearTimeout(this._copyIndicatorTimeout);
+    }
+    this._copyIndicatorTimeout = setTimeout(() => this.hideCopyIndicator(), 3200);
+  }
+
+  hideCopyIndicator() {
+    const el = document.getElementById('manual-copy-indicator');
+    if (!el) return;
+    el.classList.add('hidden');
+    if (this._copyIndicatorTimeout) {
+      clearTimeout(this._copyIndicatorTimeout);
+      this._copyIndicatorTimeout = null;
+    }
+  }
+
   _applyPairingPanelState() {
     const panel = document.getElementById('manual-pairing');
     const toggle = document.getElementById('manual-toggle');
-    const cols = panel?.querySelectorAll('.manual-col') || [];
+    const remotePanel = panel?.querySelector('.manual-remote-panel');
     if (!panel) return;
 
-    panel.classList.toggle('compact', !this.pairingExpanded);
-    cols.forEach((col) => col.classList.toggle('hidden', !this.pairingExpanded));
-    if (toggle) toggle.textContent = this.pairingExpanded ? 'Hide codes' : 'Show codes';
+    panel.classList.toggle('compact', true);
+    if (remotePanel) remotePanel.classList.toggle('hidden', !this.pairingExpanded);
+    if (toggle) toggle.textContent = this.pairingExpanded ? 'Close' : 'Paste';
+    if (!this.pairingExpanded) this.hideCopyIndicator();
     localStorage.setItem('lanshare_pairing_expanded', String(this.pairingExpanded));
   }
 

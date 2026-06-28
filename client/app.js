@@ -104,9 +104,12 @@
       try {
         const offer = await peerManager.createManualOffer(targetPeerId);
         ui.setManualCode(offer);
+        if (!targetPeerId) {
+          ui.revealRemotePanel();
+        }
         ui.setPairingStatus(targetPeerId
           ? 'Reconnect code ready. Share this with the saved device.'
-          : 'Code ready. Copy it to the other device.');
+          : 'Code ready. Copy it to the other device. Paste the returned response when ready.');
       } catch (err) {
         ui.setPairingStatus(err.message || 'Could not create code.', true);
       }
@@ -128,7 +131,17 @@
         ui.clearRemoteCode();
         if (result.responseCode) {
           ui.setManualCode(result.responseCode);
-          ui.setPairingStatus('Connected halfway. Copy this new code back to the first device.');
+          ui.showCopyIndicator('Response code copied to clipboard. please paste/share it with the other device.');
+          try {
+            await navigator.clipboard?.writeText(result.responseCode).catch(() => {
+              const target = document.getElementById('manual-code');
+              target?.select();
+              document.execCommand('copy');
+            });
+          } catch {
+            // Ignore clipboard issues and still keep the code available in the field.
+          }
+          ui.setPairingStatus('Response code copied to clipboard. please paste/share it with the other device.');
         } else {
           ui.setPairingStatus('Paired. Waiting for the direct channel to open...');
         }
@@ -161,8 +174,8 @@
       case 'peer_joined':
         ui.addPeer(msg.peerId, msg.info);
         netViz?.addNode(msg.peerId, msg.info.name, msg.info.palette || Identity.getPalette(msg.peerId));
-        // Existing peers initiate connections to the newcomer
-        if (!peerManager.connections.has(msg.peerId)) {
+        // Manual pairing handles its own offer/answer flow; avoid starting a second connection attempt.
+        if (!peerManager.manualMode && !peerManager.connections.has(msg.peerId)) {
           setTimeout(() => peerManager._initiatePeerConnection(msg.peerId), 100);
         }
         ui.logPacketEvent('peer_joined', null, msg.info?.name);
