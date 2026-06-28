@@ -108,6 +108,14 @@ http://localhost:3000
 
 Deploy the generated `dist/` folder to GitHub Pages or any static host. Static mode uses manual pairing codes because a static site has no signaling server for automatic discovery.
 
+For GitHub Pages, this repo includes a workflow at `.github/workflows/pages.yml` that builds `dist/` and deploys it. In your repository settings, set:
+
+```text
+Settings -> Pages -> Source -> GitHub Actions
+```
+
+Then push to `main`, or run the workflow manually from the Actions tab.
+
 Pairing flow:
 
 1. On the first device, click **Create Code** and copy the code.
