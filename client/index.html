@@ -57,7 +57,10 @@
         </div>
 
         <section id="manual-pairing" class="manual-pairing hidden">
-          <div class="manual-mode-label">Static HTML mode: pair with codes</div>
+          <div class="manual-head">
+            <div class="manual-mode-label">Static HTML mode: pair with codes</div>
+            <button id="manual-toggle" class="manual-link-btn">Show codes</button>
+          </div>
 
           <div class="manual-col">
             <div class="manual-title">Your Code</div>
@@ -73,6 +76,7 @@
           </div>
 
           <div id="manual-status" class="manual-status">One device creates a code. The other device pastes it, connects, then sends back the new code that appears.</div>
+          <div id="known-devices" class="known-devices hidden"></div>
         </section>
 
         <div id="no-peers" class="empty-state">

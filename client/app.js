@@ -166,6 +166,7 @@
       case 'channel_open':
         // DataChannel opened — this is the definitive connected signal
         ui.updatePeerState(msg.peerId, 'connected');
+        ui.markPeerConnected(msg.peerId);
         ui.logPacketEvent('channel_open', null, msg.peerId.substr(0, 10));
         break;
 
@@ -176,6 +177,7 @@
       case 'connection_state':
         if (msg.state === 'connected') {
           ui.updatePeerState(msg.peerId, 'connected');
+          ui.markPeerConnected(msg.peerId);
         } else if (msg.state === 'connecting' || msg.state === 'new') {
           ui.updatePeerState(msg.peerId, 'connecting');
         } else if (msg.state === 'failed') {

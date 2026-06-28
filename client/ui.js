@@ -9,6 +9,8 @@ class UI {
     this.typingTimers = new Map();
     this.speedTestHistory = [];
     this.packetCount = 0;
+    this.staticMode = false;
+    this.pairingExpanded = window.innerWidth > 640;
   }
 
   init(localIdentity) {
@@ -21,6 +23,8 @@ class UI {
     this._bindWhiteboard();
     this._bindInspectorClear();
     this._bindManualPairing();
+    this._restoreManualState();
+    this._applyPairingPanelState();
   }
 
   // ── LOCAL DEVICE ─────────────────────────────
@@ -39,6 +43,7 @@ class UI {
   }
 
   setStaticMode(enabled) {
+    this.staticMode = enabled;
     const panel = document.getElementById('manual-pairing');
     if (panel) panel.classList.toggle('hidden', !enabled);
 
@@ -48,16 +53,23 @@ class UI {
       if (emptyTitle) emptyTitle.textContent = 'Pair with another device';
       if (emptySub) emptySub.textContent = 'Create a code or paste one from a device on the same Wi-Fi network';
     }
+
+    if (enabled) {
+      this._renderKnownDevices();
+      this._applyPairingPanelState();
+    }
   }
 
   setManualCode(value) {
     const el = document.getElementById('manual-code');
     if (el) el.value = value;
+    this._saveManualDraft();
   }
 
   clearRemoteCode() {
     const el = document.getElementById('manual-remote');
     if (el) el.value = '';
+    this._saveManualDraft();
   }
 
   setPairingStatus(text, isError = false) {
@@ -84,6 +96,29 @@ class UI {
       this.onConnectCode?.(code);
     });
 
+    document.getElementById('manual-toggle')?.addEventListener('click', () => {
+      this.pairingExpanded = !this.pairingExpanded;
+      this._applyPairingPanelState();
+    });
+
+    document.getElementById('manual-code')?.addEventListener('input', () => this._saveManualDraft());
+    document.getElementById('manual-remote')?.addEventListener('input', () => this._saveManualDraft());
+
+    document.getElementById('known-devices')?.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-known-action]');
+      if (!btn) return;
+      const peerId = btn.dataset.peer;
+      if (!peerId) return;
+
+      if (btn.dataset.knownAction === 'forget') {
+        this.forgetKnownPeer(peerId);
+      } else if (btn.dataset.knownAction === 'reconnect') {
+        this.onCreateCode?.(peerId);
+        this.pairingExpanded = true;
+        this._applyPairingPanelState();
+      }
+    });
+
     panel.querySelectorAll('[data-copy]').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const target = document.getElementById(btn.dataset.copy);
@@ -95,6 +130,108 @@ class UI {
         this.setPairingStatus('Copied.');
       });
     });
+  }
+
+  markPeerConnected(peerId) {
+    const peer = this.peers.get(peerId);
+    if (peer) this.saveKnownPeer(peerId, peer.info);
+
+    if (this.staticMode) {
+      this.pairingExpanded = false;
+      this.setPairingStatus('Connected. Pairing details are compacted; saved devices stay available.');
+      this._applyPairingPanelState();
+    }
+  }
+
+  saveKnownPeer(peerId, info) {
+    const peers = this._getKnownPeers();
+    peers[peerId] = {
+      id: peerId,
+      info,
+      lastConnectedAt: Date.now(),
+      connectedAt: Date.now(),
+    };
+    localStorage.setItem('lanshare_known_peers', JSON.stringify(peers));
+    this._renderKnownDevices();
+  }
+
+  forgetKnownPeer(peerId) {
+    const peers = this._getKnownPeers();
+    const peer = peers[peerId];
+    delete peers[peerId];
+    localStorage.setItem('lanshare_known_peers', JSON.stringify(peers));
+    this._renderKnownDevices();
+    this.showNotification(`${peer?.info?.name || 'Device'} removed`, 'leave');
+  }
+
+  _getKnownPeers() {
+    try {
+      return JSON.parse(localStorage.getItem('lanshare_known_peers') || '{}');
+    } catch {
+      return {};
+    }
+  }
+
+  _renderKnownDevices() {
+    const root = document.getElementById('known-devices');
+    if (!root) return;
+
+    const peers = Object.values(this._getKnownPeers())
+      .sort((a, b) => (b.lastConnectedAt || 0) - (a.lastConnectedAt || 0));
+
+    root.classList.toggle('hidden', peers.length === 0);
+    if (peers.length === 0) {
+      root.innerHTML = '';
+      return;
+    }
+
+    root.innerHTML = `
+      <div class="known-title">Saved devices</div>
+      ${peers.map((peer) => `
+        <div class="known-row">
+          <div class="known-name">${esc(peer.info?.name || peer.id)}</div>
+          <div class="known-actions">
+            <button class="manual-link-btn" data-known-action="reconnect" data-peer="${esc(peer.id)}">Reconnect</button>
+            <button class="manual-link-btn danger" data-known-action="forget" data-peer="${esc(peer.id)}">Forget</button>
+          </div>
+        </div>
+      `).join('')}
+    `;
+  }
+
+  _restoreManualState() {
+    const code = localStorage.getItem('lanshare_manual_code') || '';
+    const remote = localStorage.getItem('lanshare_manual_remote') || '';
+    const expanded = localStorage.getItem('lanshare_pairing_expanded');
+
+    const codeEl = document.getElementById('manual-code');
+    const remoteEl = document.getElementById('manual-remote');
+    if (codeEl) codeEl.value = code;
+    if (remoteEl) remoteEl.value = remote;
+    if (expanded !== null) {
+      this.pairingExpanded = expanded === 'true';
+    } else {
+      this.pairingExpanded = window.innerWidth > 640;
+    }
+  }
+
+  _saveManualDraft() {
+    const code = document.getElementById('manual-code')?.value || '';
+    const remote = document.getElementById('manual-remote')?.value || '';
+    localStorage.setItem('lanshare_manual_code', code);
+    localStorage.setItem('lanshare_manual_remote', remote);
+  }
+
+  _applyPairingPanelState() {
+    const panel = document.getElementById('manual-pairing');
+    const toggle = document.getElementById('manual-toggle');
+    const cols = panel?.querySelectorAll('.manual-col') || [];
+    if (!panel) return;
+
+    panel.classList.toggle('compact', !this.pairingExpanded);
+    cols.forEach((col) => col.classList.toggle('hidden', !this.pairingExpanded));
+    if (toggle) toggle.textContent = this.pairingExpanded ? 'Hide codes' : 'Show codes';
+    localStorage.setItem('lanshare_pairing_expanded', String(this.pairingExpanded));
   }
 
   // ── PEERS ─────────────────────────────────────
