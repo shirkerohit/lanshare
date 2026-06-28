@@ -16,6 +16,12 @@
   "engines": {
     "node": ">=16.0.0"
   },
-  "keywords": ["lan", "file-sharing", "webrtc", "p2p", "airdrop"],
+  "keywords": [
+    "lan",
+    "file-sharing",
+    "webrtc",
+    "p2p",
+    "airdrop"
+  ],
   "license": "MIT"
 }

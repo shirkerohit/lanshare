@@ -10,6 +10,7 @@ class UI {
     this.speedTestHistory = [];
     this.packetCount = 0;
     this.staticMode = false;
+    this.theme = 'dark';
     this.pairingExpanded = window.innerWidth > 640;
   }
 
@@ -17,6 +18,7 @@ class UI {
     this.local = localIdentity;
     this._renderLocal();
     this._bindTabs();
+    this._bindThemeToggle();
     this._bindDragDrop();
     this._bindFileInput();
     this._bindChatInput();
@@ -26,6 +28,43 @@ class UI {
     this._restoreManualState();
     this._applyPairingPanelState();
     this.switchTab(this.activePanel);
+  }
+
+  _bindThemeToggle() {
+    const toggle = document.getElementById('theme-toggle');
+    if (!toggle) return;
+
+    toggle.addEventListener('click', () => this.toggleTheme());
+    this._applyTheme();
+  }
+
+  toggleTheme() {
+    const nextTheme = this.theme === 'light' ? 'dark' : 'light';
+    this.setTheme(nextTheme);
+  }
+
+  setTheme(theme) {
+    this.theme = theme === 'light' ? 'light' : 'dark';
+    document.body.dataset.theme = this.theme;
+    document.documentElement.dataset.theme = this.theme;
+    localStorage.setItem('lanshare_theme', this.theme);
+
+    const toggle = document.getElementById('theme-toggle');
+    if (toggle) {
+      const icon = toggle.querySelector('.theme-toggle-icon');
+      const label = toggle.querySelector('.theme-toggle-label');
+      if (icon) icon.textContent = this.theme === 'light' ? '🌙' : '☀';
+      if (label) label.textContent = this.theme === 'light' ? 'Dark' : 'Light';
+      toggle.classList.toggle('active', this.theme === 'light');
+      toggle.setAttribute('aria-pressed', String(this.theme === 'light'));
+    }
+  }
+
+  _applyTheme() {
+    const stored = localStorage.getItem('lanshare_theme');
+    const prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+    const theme = stored || (prefersLight ? 'light' : 'dark');
+    this.setTheme(theme);
   }
 
   // ── LOCAL DEVICE ─────────────────────────────

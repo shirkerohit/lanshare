@@ -5,6 +5,19 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>LanShare — Instant Device File Transfer</title>
+  <script>
+    (function () {
+      try {
+        const stored = localStorage.getItem('lanshare_theme');
+        const prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+        const theme = stored || (prefersLight ? 'light' : 'dark');
+        document.documentElement.setAttribute('data-theme', theme);
+        document.body?.setAttribute('data-theme', theme);
+      } catch (e) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
   <link rel="stylesheet" href="styles.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link
@@ -38,6 +51,10 @@
         </div>
       </div>
       <div class="header-right">
+        <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle theme" title="Toggle theme">
+          <span class="theme-toggle-icon">☀</span>
+          <span class="theme-toggle-label">Light</span>
+        </button>
         <div class="self-identity">
           <canvas id="self-avatar" width="32" height="32"></canvas>
           <span id="self-name">--</span>
@@ -62,7 +79,7 @@
 
       <!-- DEVICES -->
       <div class="panel active" id="panel-devices">
-        <div class="local-bar">
+        <!-- <div class="local-bar">
           <canvas class="avatar-canvas" id="local-avatar" width="52"
             height="52"></canvas>
           <div class="local-info">
@@ -70,7 +87,7 @@
             <div class="local-sub">this device</div>
           </div>
           <div class="local-badge">YOU</div>
-        </div>
+        </div> -->
 
         <section id="manual-pairing" class="manual-pairing hidden">
           <div class="manual-head">
@@ -82,7 +99,7 @@
 
           <div class="manual-col">
             <div class="manual-title">Your Code</div>
-            <button id="manual-create-code" class="manual-btn">Create
+            <button id="manual-create-code" class="manual-btn">Generate
               Code</button>
             <textarea id="manual-code" readonly
               placeholder="Your connection code appears here"></textarea>
@@ -91,7 +108,7 @@
           </div>
 
           <div class="manual-col">
-            <div class="manual-title">Have A Code?</div>
+            <div class="manual-title">Other Device Code</div>
             <textarea id="manual-remote"
               placeholder="Paste the other device's code here"></textarea>
             <button id="manual-connect-code" class="manual-btn">Connect</button>
