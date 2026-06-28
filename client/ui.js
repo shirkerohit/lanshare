@@ -20,6 +20,7 @@ class UI {
     this._bindChatInput();
     this._bindWhiteboard();
     this._bindInspectorClear();
+    this._bindManualPairing();
   }
 
   // ── LOCAL DEVICE ─────────────────────────────
@@ -35,6 +36,65 @@ class UI {
 
     const selfN = document.getElementById('self-name');
     if (selfN) selfN.textContent = this.local.name;
+  }
+
+  setStaticMode(enabled) {
+    const panel = document.getElementById('manual-pairing');
+    if (panel) panel.classList.toggle('hidden', !enabled);
+
+    const emptyTitle = document.querySelector('#no-peers .empty-title');
+    const emptySub = document.querySelector('#no-peers .empty-sub');
+    if (enabled) {
+      if (emptyTitle) emptyTitle.textContent = 'Pair with another device';
+      if (emptySub) emptySub.textContent = 'Create a code or paste one from a device on the same Wi-Fi network';
+    }
+  }
+
+  setManualCode(value) {
+    const el = document.getElementById('manual-code');
+    if (el) el.value = value;
+  }
+
+  clearRemoteCode() {
+    const el = document.getElementById('manual-remote');
+    if (el) el.value = '';
+  }
+
+  setPairingStatus(text, isError = false) {
+    const el = document.getElementById('manual-status');
+    if (!el) return;
+    el.textContent = text;
+    el.classList.toggle('error', isError);
+  }
+
+  _bindManualPairing() {
+    const panel = document.getElementById('manual-pairing');
+    if (!panel) return;
+
+    document.getElementById('manual-create-code')?.addEventListener('click', () => {
+      this.onCreateCode?.();
+    });
+
+    document.getElementById('manual-connect-code')?.addEventListener('click', () => {
+      const code = document.getElementById('manual-remote')?.value.trim();
+      if (!code) {
+        this.setPairingStatus('Paste a code first.', true);
+        return;
+      }
+      this.onConnectCode?.(code);
+    });
+
+    panel.querySelectorAll('[data-copy]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const target = document.getElementById(btn.dataset.copy);
+        if (!target?.value) return;
+        await navigator.clipboard?.writeText(target.value).catch(() => {
+          target.select();
+          document.execCommand('copy');
+        });
+        this.setPairingStatus('Copied.');
+      });
+    });
   }
 
   // ── PEERS ─────────────────────────────────────

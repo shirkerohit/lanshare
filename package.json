@@ -4,6 +4,9 @@
   "description": "Lightning-fast browser-based LAN file sharing with WebRTC",
   "main": "server/server.js",
   "scripts": {
+    "build": "node scripts/build.js",
+    "preview": "npm run build && node scripts/serve-dist.js",
+    "serve:static": "node scripts/serve-dist.js",
     "start": "node server/server.js",
     "dev": "node server/server.js"
   },

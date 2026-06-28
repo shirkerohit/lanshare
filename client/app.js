@@ -8,6 +8,7 @@
   let speedTestActive  = false;
   let xferBytesIn = 0, xferBytesOut = 0;
   let lastMetricTs = Date.now();
+  let staticMode = false;
 
   function init() {
     identity = Identity.getOrCreateIdentity();
@@ -21,7 +22,11 @@
       type:    identity.type,
       palette: identity.palette,
     });
-    peerManager.connect();
+    staticMode = window.LANSHARE_STATIC === true
+      || location.protocol === 'file:'
+      || new URLSearchParams(location.search).has('static');
+    peerManager.connect({ manual: staticMode });
+    ui.setStaticMode(staticMode);
 
     transferEngine = new TransferEngine(peerManager);
 
@@ -56,7 +61,10 @@
 
     transferEngine.onLatency = (peerId, rtt) => ui.updatePeerLatency(peerId, rtt);
 
-    transferEngine.onControl = (peerId, msg) => ui.logPacketEvent(msg.type, null, '');
+    transferEngine.onControl = (peerId, msg) => {
+      ui.logPacketEvent(msg.type, null, '');
+      handleMessage({ ...msg, peerId, from: msg.from || peerId });
+    };
 
     // ── UI callbacks ──
     ui.onSendFiles = (files, peerId) => files.forEach(f => sendFile(f, peerId));
@@ -90,6 +98,33 @@
     };
 
     ui.onWhiteboardDraw = (event) => peerManager.sendWhiteboardEvent(event);
+
+    ui.onCreateCode = async () => {
+      ui.setPairingStatus('Creating code...');
+      try {
+        const offer = await peerManager.createManualOffer();
+        ui.setManualCode(offer);
+        ui.setPairingStatus('Code ready. Copy it to the other device.');
+      } catch (err) {
+        ui.setPairingStatus(err.message || 'Could not create code.', true);
+      }
+    };
+
+    ui.onConnectCode = async (code) => {
+      ui.setPairingStatus('Reading code...');
+      try {
+        const result = await peerManager.processManualCode(code);
+        ui.clearRemoteCode();
+        if (result.responseCode) {
+          ui.setManualCode(result.responseCode);
+          ui.setPairingStatus('Connected halfway. Copy this new code back to the first device.');
+        } else {
+          ui.setPairingStatus('Paired. Waiting for the direct channel to open...');
+        }
+      } catch (err) {
+        ui.setPairingStatus(err.message || 'Could not connect with that code.', true);
+      }
+    };
 
     // ── Network Visualizer ──
     const vizCanvas = document.getElementById('network-viz');

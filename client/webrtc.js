@@ -16,10 +16,17 @@ class PeerManager {
     this.maxReconnects = 5;
     this.latencies = new Map();
     this.pingIntervals = new Map();
+    this.manualMode = false;
+    this.manualPairs = new Map();
   }
 
-  connect(serverUrl) {
-    this.serverUrl = serverUrl;
+  connect(options = {}) {
+    this.manualMode = !!options.manual;
+    if (this.manualMode) {
+      this.wsReady = false;
+      return;
+    }
+    this.serverUrl = options.serverUrl;
     this._connectWS();
   }
 
@@ -84,6 +91,136 @@ class PeerManager {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(msg));
     }
+  }
+
+  _encodeManualPayload(payload) {
+    const json = JSON.stringify(payload);
+    return btoa(unescape(encodeURIComponent(json)));
+  }
+
+  _decodeManualPayload(text) {
+    const json = decodeURIComponent(escape(atob(String(text).trim())));
+    return JSON.parse(json);
+  }
+
+  _waitForIceComplete(pc) {
+    if (pc.iceGatheringState === 'complete') return Promise.resolve();
+
+    return new Promise((resolve) => {
+      const done = () => {
+        if (pc.iceGatheringState === 'complete') {
+          pc.removeEventListener('icegatheringstatechange', done);
+          resolve();
+        }
+      };
+
+      pc.addEventListener('icegatheringstatechange', done);
+      setTimeout(() => {
+        pc.removeEventListener('icegatheringstatechange', done);
+        resolve();
+      }, 5000);
+    });
+  }
+
+  async createManualOffer() {
+    const connectionId = 'pair_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    const provisionalPeerId = `manual_${connectionId}`;
+    const pc = this._createPeerConnection(provisionalPeerId, { manual: true });
+
+    const dc = pc.createDataChannel('transfer', {
+      ordered: true,
+      maxRetransmits: 30,
+    });
+    this._setupDataChannel(dc, provisionalPeerId);
+
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    await this._waitForIceComplete(pc);
+
+    this.manualPairs.set(connectionId, provisionalPeerId);
+
+    return this._encodeManualPayload({
+      app: 'lanshare',
+      version: 1,
+      role: 'offer',
+      connectionId,
+      from: {
+        peerId: this.peerId,
+        info: this.localInfo,
+      },
+      signal: {
+        sdp: pc.localDescription,
+      },
+    });
+  }
+
+  async acceptManualOffer(encodedOffer) {
+    const offer = this._decodeManualPayload(encodedOffer);
+    if (offer.app !== 'lanshare' || offer.role !== 'offer' || !offer.from?.peerId || !offer.signal?.sdp) {
+      throw new Error('This does not look like a LanShare invite.');
+    }
+
+    const remotePeerId = offer.from.peerId;
+    this.onMessage({ type: 'peer_joined', peerId: remotePeerId, info: offer.from.info });
+
+    const pc = this._createPeerConnection(remotePeerId, { manual: true });
+    await pc.setRemoteDescription(new RTCSessionDescription(offer.signal.sdp));
+
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    await this._waitForIceComplete(pc);
+
+    return this._encodeManualPayload({
+      app: 'lanshare',
+      version: 1,
+      role: 'answer',
+      connectionId: offer.connectionId,
+      from: {
+        peerId: this.peerId,
+        info: this.localInfo,
+      },
+      to: remotePeerId,
+      signal: {
+        sdp: pc.localDescription,
+      },
+    });
+  }
+
+  async applyManualAnswer(encodedAnswer) {
+    const answer = this._decodeManualPayload(encodedAnswer);
+    if (answer.app !== 'lanshare' || answer.role !== 'answer' || !answer.from?.peerId || !answer.signal?.sdp) {
+      throw new Error('This does not look like a LanShare answer.');
+    }
+
+    const provisionalPeerId = this.manualPairs.get(answer.connectionId);
+    if (!provisionalPeerId) {
+      throw new Error('No matching local invite was found for this answer.');
+    }
+
+    await this._handleSignal(provisionalPeerId, answer.signal);
+    this._renamePeer(provisionalPeerId, answer.from.peerId);
+    this.onMessage({ type: 'peer_joined', peerId: answer.from.peerId, info: answer.from.info });
+    this.manualPairs.delete(answer.connectionId);
+  }
+
+  async processManualCode(encodedCode) {
+    const payload = this._decodeManualPayload(encodedCode);
+
+    if (payload.app !== 'lanshare' || !payload.role) {
+      throw new Error('This does not look like a LanShare code.');
+    }
+
+    if (payload.role === 'offer') {
+      const responseCode = await this.acceptManualOffer(encodedCode);
+      return { role: 'offer', responseCode };
+    }
+
+    if (payload.role === 'answer') {
+      await this.applyManualAnswer(encodedCode);
+      return { role: 'answer' };
+    }
+
+    throw new Error('This LanShare code is not supported.');
   }
 
   _handleServerMessage(msg) {
@@ -155,9 +292,9 @@ class PeerManager {
     }).catch(console.error);
   }
 
-  _createPeerConnection(remotePeerId) {
+  _createPeerConnection(remotePeerId, options = {}) {
     const config = {
-      iceServers: [
+      iceServers: options.manual ? [] : [
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
       ],
@@ -167,6 +304,7 @@ class PeerManager {
     this.connections.set(remotePeerId, pc);
 
     pc.onicecandidate = (e) => {
+      if (options.manual) return;
       if (e.candidate) {
         this._send({
           type: 'signal',
@@ -177,6 +315,16 @@ class PeerManager {
       }
     };
 
+    this._bindConnectionState(pc, remotePeerId);
+
+    pc.ondatachannel = (e) => {
+      this._setupDataChannel(e.channel, remotePeerId);
+    };
+
+    return pc;
+  }
+
+  _bindConnectionState(pc, remotePeerId) {
     pc.onconnectionstatechange = () => {
       const state = pc.connectionState;
       this.onMessage({ type: 'connection_state', peerId: remotePeerId, state });
@@ -187,12 +335,6 @@ class PeerManager {
         this._handleConnectionFailure(remotePeerId);
       }
     };
-
-    pc.ondatachannel = (e) => {
-      this._setupDataChannel(e.channel, remotePeerId);
-    };
-
-    return pc;
   }
 
   async _handleSignal(remotePeerId, signal) {
@@ -302,6 +444,29 @@ class PeerManager {
     }
   }
 
+  _renamePeer(oldPeerId, newPeerId) {
+    if (oldPeerId === newPeerId) return;
+
+    const pc = this.connections.get(oldPeerId);
+    if (pc) {
+      this.connections.delete(oldPeerId);
+      this.connections.set(newPeerId, pc);
+      this._bindConnectionState(pc, newPeerId);
+    }
+
+    const dc = this.dataChannels.get(oldPeerId);
+    if (dc) {
+      this.dataChannels.delete(oldPeerId);
+      this._setupDataChannel(dc, newPeerId);
+    }
+
+    const pending = this.pendingSignals.get(oldPeerId);
+    if (pending) {
+      this.pendingSignals.delete(oldPeerId);
+      this.pendingSignals.set(newPeerId, pending);
+    }
+  }
+
   sendToPeer(remotePeerId, data) {
     const dc = this.dataChannels.get(remotePeerId);
     if (dc && dc.readyState === 'open') {
@@ -316,6 +481,24 @@ class PeerManager {
   }
 
   sendChatMessage(text, targetId = null, isPrivate = false) {
+    if (this.manualMode) {
+      const msg = {
+        type: 'chat',
+        from: this.peerId,
+        name: this.localInfo?.name,
+        text,
+        private: isPrivate,
+        target: targetId,
+        timestamp: Date.now(),
+      };
+      if (targetId) {
+        this.sendJsonToPeer(targetId, msg);
+      } else {
+        for (const [peerId] of this.dataChannels) this.sendJsonToPeer(peerId, msg);
+      }
+      return;
+    }
+
     this._send({
       type: 'chat',
       from: this.peerId,
@@ -327,6 +510,17 @@ class PeerManager {
   }
 
   sendWhiteboardEvent(event) {
+    if (this.manualMode) {
+      for (const [peerId] of this.dataChannels) {
+        this.sendJsonToPeer(peerId, {
+          type: 'whiteboard',
+          from: this.peerId,
+          event,
+        });
+      }
+      return;
+    }
+
     this._send({
       type: 'whiteboard',
       from: this.peerId,
@@ -335,6 +529,18 @@ class PeerManager {
   }
 
   sendTypingIndicator(isTyping) {
+    if (this.manualMode) {
+      for (const [peerId] of this.dataChannels) {
+        this.sendJsonToPeer(peerId, {
+          type: 'typing',
+          from: this.peerId,
+          name: this.localInfo?.name,
+          isTyping,
+        });
+      }
+      return;
+    }
+
     this._send({
       type: 'typing',
       from: this.peerId,
