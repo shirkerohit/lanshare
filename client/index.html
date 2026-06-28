@@ -1,13 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>LanShare — Instant Device File Transfer</title>
   <link rel="stylesheet" href="styles.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Inter:wght@300;400;500;600&display=swap"
+    rel="stylesheet" />
 </head>
+
 <body>
   <div id="app">
 
@@ -20,10 +24,17 @@
       </div>
       <div class="header-center">
         <div class="live-metrics">
-          <div class="metric-pill" title="Upload"><span class="mpill-icon">↑</span><span id="metric-up">0 B/s</span></div>
-          <div class="metric-pill" title="Download"><span class="mpill-icon">↓</span><span id="metric-down">0 B/s</span></div>
-          <div class="metric-pill" title="Peers"><span class="mpill-icon">◈</span><span id="metric-peers">0</span> peers</div>
-          <div class="metric-pill" title="Avg latency"><span class="mpill-icon">◎</span><span id="metric-latency">--</span></div>
+          <div class="metric-pill" title="Upload"><span
+              class="mpill-icon">↑</span><span id="metric-up">0 B/s</span></div>
+          <div class="metric-pill" title="Download"><span
+              class="mpill-icon">↓</span><span id="metric-down">0 B/s</span>
+          </div>
+          <div class="metric-pill" title="Peers"><span
+              class="mpill-icon">◈</span><span id="metric-peers">0</span> peers
+          </div>
+          <div class="metric-pill" title="Avg latency"><span
+              class="mpill-icon">◎</span><span id="metric-latency">--</span>
+          </div>
         </div>
       </div>
       <div class="header-right">
@@ -35,12 +46,16 @@
     </header>
 
     <nav id="tab-nav">
-      <button class="tab-btn active" data-tab="devices">Devices</button>
-      <button class="tab-btn" data-tab="network">Network</button>
-      <button class="tab-btn" data-tab="chat">Chat</button>
-      <button class="tab-btn" data-tab="whiteboard">Whiteboard</button>
-      <button class="tab-btn" data-tab="speedtest">Speed Test</button>
-      <button class="tab-btn" data-tab="inspector">Inspector</button>
+      <button type="button" class="tab-btn active"
+        data-tab="devices">Devices</button>
+      <button type="button" class="tab-btn" data-tab="network">Network</button>
+      <button type="button" class="tab-btn" data-tab="chat">Chat</button>
+      <button type="button" class="tab-btn"
+        data-tab="whiteboard">Whiteboard</button>
+      <button type="button" class="tab-btn" data-tab="speedtest">Speed
+        Test</button>
+      <button type="button" class="tab-btn"
+        data-tab="inspector">Inspector</button>
     </nav>
 
     <main id="main">
@@ -48,7 +63,8 @@
       <!-- DEVICES -->
       <div class="panel active" id="panel-devices">
         <div class="local-bar">
-          <canvas class="avatar-canvas" id="local-avatar" width="52" height="52"></canvas>
+          <canvas class="avatar-canvas" id="local-avatar" width="52"
+            height="52"></canvas>
           <div class="local-info">
             <div class="local-name" id="local-name-display">--</div>
             <div class="local-sub">this device</div>
@@ -58,24 +74,32 @@
 
         <section id="manual-pairing" class="manual-pairing hidden">
           <div class="manual-head">
-            <div class="manual-mode-label">Static HTML mode: pair with codes</div>
-            <button id="manual-toggle" class="manual-link-btn">Show codes</button>
+            <div class="manual-mode-label">Static HTML mode: pair with codes
+            </div>
+            <button id="manual-toggle" class="manual-link-btn">Show
+              codes</button>
           </div>
 
           <div class="manual-col">
             <div class="manual-title">Your Code</div>
-            <button id="manual-create-code" class="manual-btn">Create Code</button>
-            <textarea id="manual-code" readonly placeholder="Your connection code appears here"></textarea>
-            <button class="manual-copy" data-copy="manual-code">Copy Code</button>
+            <button id="manual-create-code" class="manual-btn">Create
+              Code</button>
+            <textarea id="manual-code" readonly
+              placeholder="Your connection code appears here"></textarea>
+            <button class="manual-copy" data-copy="manual-code">Copy
+              Code</button>
           </div>
 
           <div class="manual-col">
             <div class="manual-title">Have A Code?</div>
-            <textarea id="manual-remote" placeholder="Paste the other device's code here"></textarea>
+            <textarea id="manual-remote"
+              placeholder="Paste the other device's code here"></textarea>
             <button id="manual-connect-code" class="manual-btn">Connect</button>
           </div>
 
-          <div id="manual-status" class="manual-status">One device creates a code. The other device pastes it, connects, then sends back the new code that appears.</div>
+          <div id="manual-status" class="manual-status">One device creates a
+            code. The other device pastes it, connects, then sends back the new
+            code that appears.</div>
           <div id="known-devices" class="known-devices hidden"></div>
         </section>
 
@@ -87,7 +111,8 @@
             <div class="ring-dot">📡</div>
           </div>
           <div class="empty-title">Scanning for devices...</div>
-          <div class="empty-sub">Open this page on another device on the same Wi-Fi network</div>
+          <div class="empty-sub">Open this page on another device on the same
+            Wi-Fi network</div>
           <div class="url-chip" id="url-display"></div>
         </div>
 
@@ -115,7 +140,8 @@
         <div id="chat-feed" class="chat-feed"></div>
         <div id="typing-indicator" class="typing-indicator hidden"></div>
         <div class="chat-compose">
-          <input id="chat-input" type="text" placeholder="Message everyone..." autocomplete="off" />
+          <input id="chat-input" type="text" placeholder="Message everyone..."
+            autocomplete="off" />
           <button id="chat-send">Send</button>
         </div>
       </div>
@@ -149,7 +175,8 @@
         <div id="speedtest-history" class="st-history"></div>
         <div id="speedtest-empty" class="st-empty">
           <div class="st-empty-icon">⚡</div>
-          <p>No speed tests run yet.<br>Click <strong>Speed Test</strong> on a device card to start.</p>
+          <p>No speed tests run yet.<br>Click <strong>Speed Test</strong> on a
+            device card to start.</p>
         </div>
       </div>
 
@@ -180,4 +207,5 @@
     document.getElementById('url-display').textContent = location.href;
   </script>
 </body>
+
 </html>

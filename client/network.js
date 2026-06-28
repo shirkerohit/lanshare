@@ -163,7 +163,7 @@ class NetworkVisualizer {
       ctx.beginPath();
       ctx.arc(px, py, p.size * 2.5, 0, Math.PI * 2);
       const glow = ctx.createRadialGradient(px, py, 0, px, py, p.size * 2.5);
-      glow.addColorStop(0, p.color + '88');
+      glow.addColorStop(0, withAlpha(p.color, 0.53));
       glow.addColorStop(1, 'transparent');
       ctx.fillStyle = glow;
       ctx.fill();
@@ -198,8 +198,8 @@ class NetworkVisualizer {
   _drawConnection(a, b) {
     const { ctx } = this;
     const grad = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
-    grad.addColorStop(0, (a.palette?.[0] || '#00ffcc') + '88');
-    grad.addColorStop(1, (b.palette?.[0] || '#00ffcc') + '44');
+    grad.addColorStop(0, withAlpha(a.palette?.[0] || '#00ffcc', 0.53));
+    grad.addColorStop(1, withAlpha(b.palette?.[0] || '#00ffcc', 0.27));
     ctx.beginPath();
     ctx.moveTo(a.x, a.y);
     ctx.lineTo(b.x, b.y);
@@ -221,7 +221,7 @@ class NetworkVisualizer {
       const pulse = Math.sin(this.time * 0.04 + pulsePhase) * 0.5 + 0.5;
       ctx.beginPath();
       ctx.arc(x, y, radius + 6 + pulse * 4, 0, Math.PI * 2);
-      ctx.strokeStyle = (palette?.[0] || '#00ffcc') + '44';
+      ctx.strokeStyle = withAlpha(palette?.[0] || '#00ffcc', 0.27);
       ctx.lineWidth = 1;
       ctx.stroke();
     }
@@ -258,6 +258,46 @@ class NetworkVisualizer {
 
 function lerp(a, b, t) {
   return a + (b - a) * t;
+}
+
+function withAlpha(color, alpha) {
+  const value = String(color || '#00ffcc').trim();
+  if (!value) return `rgba(0, 255, 204, ${alpha})`;
+
+  if (value.startsWith('#')) {
+    const hex = value.slice(1);
+    if (hex.length === 3) {
+      const full = hex.split('').map((c) => c + c).join('');
+      const int = parseInt(full, 16);
+      return `rgba(${(int >> 16) & 255}, ${(int >> 8) & 255}, ${int & 255}, ${alpha})`;
+    }
+    if (hex.length === 6) {
+      const int = parseInt(hex, 16);
+      return `rgba(${(int >> 16) & 255}, ${(int >> 8) & 255}, ${int & 255}, ${alpha})`;
+    }
+    return `rgba(0, 255, 204, ${alpha})`;
+  }
+
+  if (value.startsWith('hsl(')) {
+    const m = value.match(/hsl\(([^,]+),\s*([^,]+),\s*([^)]+)\)/i);
+    if (m) {
+      return `hsla(${m[1]}, ${m[2]}, ${m[3]}, ${alpha})`;
+    }
+  }
+
+  if (value.startsWith('hsla(')) {
+    return value.replace(/hsla\(([^,]+),\s*([^,]+),\s*([^)]+),\s*[^)]+\)/i, `hsla($1, $2, $3, ${alpha})`);
+  }
+
+  if (value.startsWith('rgb(')) {
+    return value.replace(/rgb\(([^,]+),\s*([^,]+),\s*([^)]+)\)/i, `rgba($1, $2, $3, ${alpha})`);
+  }
+
+  if (value.startsWith('rgba(')) {
+    return value.replace(/rgba\(([^,]+),\s*([^,]+),\s*([^)]+),\s*[^)]+\)/i, `rgba($1, $2, $3, ${alpha})`);
+  }
+
+  return `rgba(0, 255, 204, ${alpha})`;
 }
 
 window.NetworkVisualizer = NetworkVisualizer;

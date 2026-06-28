@@ -122,7 +122,7 @@ class PeerManager {
     });
   }
 
-  async createManualOffer() {
+  async createManualOffer(targetPeerId = null) {
     const connectionId = 'pair_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
     const provisionalPeerId = `manual_${connectionId}`;
     const pc = this._createPeerConnection(provisionalPeerId, { manual: true });
@@ -137,21 +137,25 @@ class PeerManager {
     await pc.setLocalDescription(offer);
     await this._waitForIceComplete(pc);
 
-    this.manualPairs.set(connectionId, provisionalPeerId);
-
-    return this._encodeManualPayload({
-      app: 'lanshare',
-      version: 1,
-      role: 'offer',
-      connectionId,
-      from: {
-        peerId: this.peerId,
-        info: this.localInfo,
-      },
-      signal: {
-        sdp: pc.localDescription,
-      },
+    this.manualPairs.set(connectionId, {
+      provisionalPeerId,
+      targetPeerId,
+      offerCode: this._encodeManualPayload({
+        app: 'lanshare',
+        version: 1,
+        role: 'offer',
+        connectionId,
+        from: {
+          peerId: this.peerId,
+          info: this.localInfo,
+        },
+        signal: {
+          sdp: pc.localDescription,
+        },
+      }),
     });
+
+    return this.manualPairs.get(connectionId).offerCode;
   }
 
   async acceptManualOffer(encodedOffer) {
@@ -192,13 +196,13 @@ class PeerManager {
       throw new Error('This does not look like a LanShare answer.');
     }
 
-    const provisionalPeerId = this.manualPairs.get(answer.connectionId);
-    if (!provisionalPeerId) {
+    const pair = this.manualPairs.get(answer.connectionId);
+    if (!pair) {
       throw new Error('No matching local invite was found for this answer.');
     }
 
-    await this._handleSignal(provisionalPeerId, answer.signal);
-    this._renamePeer(provisionalPeerId, answer.from.peerId);
+    await this._handleSignal(pair.provisionalPeerId, answer.signal);
+    this._renamePeer(pair.provisionalPeerId, answer.from.peerId);
     this.onMessage({ type: 'peer_joined', peerId: answer.from.peerId, info: answer.from.info });
     this.manualPairs.delete(answer.connectionId);
   }
@@ -350,7 +354,7 @@ class PeerManager {
       // Process any queued candidates
       const queued = this.pendingSignals.get(remotePeerId) || [];
       for (const c of queued) {
-        await pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {});
+        await pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => { });
       }
       this.pendingSignals.delete(remotePeerId);
 
@@ -366,7 +370,7 @@ class PeerManager {
       }
     } else if (signal.candidate) {
       if (pc.remoteDescription) {
-        await pc.addIceCandidate(new RTCIceCandidate(signal.candidate)).catch(() => {});
+        await pc.addIceCandidate(new RTCIceCandidate(signal.candidate)).catch(() => { });
       } else {
         // Queue until remote description is set
         if (!this.pendingSignals.has(remotePeerId)) {
@@ -413,7 +417,7 @@ class PeerManager {
       const ping = { type: 'ping', t: Date.now() };
       try {
         dc.send(JSON.stringify(ping));
-      } catch {}
+      } catch { }
     }, 2000);
 
     this.pingIntervals.set(remotePeerId, interval);
@@ -434,7 +438,7 @@ class PeerManager {
 
   _cleanupPeer(remotePeerId, notify = true) {
     const pc = this.connections.get(remotePeerId);
-    if (pc) { try { pc.close(); } catch {} }
+    if (pc) { try { pc.close(); } catch { } }
     this.connections.delete(remotePeerId);
     this.dataChannels.delete(remotePeerId);
 

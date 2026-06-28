@@ -2,7 +2,7 @@
 
 class UI {
   constructor() {
-    this.peers    = new Map();
+    this.peers = new Map();
     this.transfers = new Map();
     this.activePanel = 'devices';
     this.selectedPeer = null;
@@ -25,6 +25,7 @@ class UI {
     this._bindManualPairing();
     this._restoreManualState();
     this._applyPairingPanelState();
+    this.switchTab(this.activePanel);
   }
 
   // ── LOCAL DEVICE ─────────────────────────────
@@ -113,9 +114,9 @@ class UI {
       if (btn.dataset.knownAction === 'forget') {
         this.forgetKnownPeer(peerId);
       } else if (btn.dataset.knownAction === 'reconnect') {
-        this.onCreateCode?.(peerId);
         this.pairingExpanded = true;
         this._applyPairingPanelState();
+        if (this.onReconnectPeer) this.onReconnectPeer(peerId);
       }
     });
 
@@ -189,7 +190,10 @@ class UI {
       <div class="known-title">Saved devices</div>
       ${peers.map((peer) => `
         <div class="known-row">
-          <div class="known-name">${esc(peer.info?.name || peer.id)}</div>
+          <div>
+            <div class="known-name">${esc(peer.info?.name || peer.id)}</div>
+            <div class="known-sub">Last connected ${peer.lastConnectedAt ? new Date(peer.lastConnectedAt).toLocaleString() : 'unknown'}</div>
+          </div>
           <div class="known-actions">
             <button class="manual-link-btn" data-known-action="reconnect" data-peer="${esc(peer.id)}">Reconnect</button>
             <button class="manual-link-btn danger" data-known-action="forget" data-peer="${esc(peer.id)}">Forget</button>
@@ -210,8 +214,6 @@ class UI {
     if (remoteEl) remoteEl.value = remote;
     if (expanded !== null) {
       this.pairingExpanded = expanded === 'true';
-    } else {
-      this.pairingExpanded = window.innerWidth > 640;
     }
   }
 
@@ -283,8 +285,8 @@ class UI {
     dot.className = `conn-dot ${state}`;
     if (lbl) {
       lbl.textContent = state === 'connected' ? 'Connected'
-                      : state === 'connecting' ? 'Connecting...'
-                      : 'Offline';
+        : state === 'connecting' ? 'Connecting...'
+          : 'Offline';
     }
   }
 
@@ -401,7 +403,7 @@ class UI {
       const el = document.querySelector(`#peer-${peerId} .stat-uptime`);
       if (el) {
         const s = Math.floor((Date.now() - peer.connectedAt) / 1000);
-        el.textContent = s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s/60)}m` : `${Math.floor(s/3600)}h`;
+        el.textContent = s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m` : `${Math.floor(s / 3600)}h`;
       }
       setTimeout(tick, 1000);
     };
@@ -427,15 +429,15 @@ class UI {
     if (xfer) xfer.classList.remove('hidden');
 
     const fill = card.querySelector('.xfer-bar-fill');
-    const pct  = card.querySelector('.xfer-pct');
-    const spd  = card.querySelector('.xfer-spd');
-    const eta  = card.querySelector('.xfer-eta');
+    const pct = card.querySelector('.xfer-pct');
+    const spd = card.querySelector('.xfer-spd');
+    const eta = card.querySelector('.xfer-eta');
 
     const p = Math.round((data.progress || 0) * 100);
     if (fill) fill.style.width = `${p}%`;
-    if (pct)  pct.textContent  = `${p}%`;
-    if (spd)  spd.textContent  = fmtSpeed(data.speed);
-    if (eta)  eta.textContent  = fmtETA(data.eta);
+    if (pct) pct.textContent = `${p}%`;
+    if (spd) spd.textContent = fmtSpeed(data.speed);
+    if (eta) eta.textContent = fmtETA(data.eta);
   }
 
   clearTransfer(peerId) {
@@ -471,7 +473,7 @@ class UI {
     const feed = document.getElementById('chat-feed');
     if (!feed) return;
     const isOwn = msg.fromPeer === this.local?.id;
-    const ts = new Date(msg.timestamp || Date.now()).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+    const ts = new Date(msg.timestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const el = document.createElement('div');
     el.className = `chat-msg${isOwn ? ' own' : ''}${msg.private ? ' private' : ''}`;
     el.innerHTML = `
@@ -536,7 +538,7 @@ class UI {
 
     const peer = this.peers.get(peerId);
     const name = peer?.info.name || peerId;
-    const ts = new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+    const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const mbps = result.mbps.toFixed(1);
 
     const card = document.createElement('div');
@@ -601,7 +603,7 @@ class UI {
       e.preventDefault();
       const p = pos(e);
       const color = document.getElementById('wb-color')?.value || '#00ffcc';
-      const size  = parseInt(document.getElementById('wb-size')?.value || 4);
+      const size = parseInt(document.getElementById('wb-size')?.value || 4);
       this._wbStroke(lx, ly, p.x, p.y, color, size);
       if (this.onWhiteboardDraw) this.onWhiteboardDraw({ x1: lx, y1: ly, x2: p.x, y2: p.y, color, size });
       lx = p.x; ly = p.y;
@@ -624,7 +626,7 @@ class UI {
     });
 
     const sizeInput = document.getElementById('wb-size');
-    const sizeNum   = document.getElementById('wb-size-num');
+    const sizeNum = document.getElementById('wb-size-num');
     sizeInput?.addEventListener('input', () => {
       if (sizeNum) sizeNum.textContent = `${sizeInput.value}px`;
     });
@@ -689,7 +691,7 @@ class UI {
       list.appendChild(hdr);
     }
 
-    const ts = new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+    const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     const row = document.createElement('div');
     row.className = 'pk-entry';
     row.innerHTML = `
@@ -729,21 +731,44 @@ class UI {
 
   // ── TABS ──────────────────────────────────────
   _bindTabs() {
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-      btn.addEventListener('click', () => this.switchTab(btn.dataset.tab));
+    const nav = document.getElementById('tab-nav');
+    if (!nav) return;
+    nav.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.type = 'button';
+    });
+    nav.addEventListener('click', (event) => {
+      const btn = event.target.closest('.tab-btn');
+      if (!btn || !nav.contains(btn)) return;
+      event.preventDefault();
+      const tab = btn.dataset.tab || btn.getAttribute('data-tab');
+      if (!tab) return;
+      this.switchTab(tab);
     });
   }
 
   switchTab(name) {
-    this.activePanel = name;
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
-    document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === `panel-${name}`));
+    const tabName = String(name || '').trim() || 'devices';
+    const panel = document.getElementById(`panel-${tabName}`);
+    if (!panel) return;
+
+    this.activePanel = tabName;
+    document.querySelectorAll('.tab-btn').forEach((b) => {
+      const isActive = (b.dataset.tab || b.getAttribute('data-tab')) === tabName;
+      b.classList.toggle('active', isActive);
+      b.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    });
+
+    document.querySelectorAll('.panel').forEach((p) => {
+      const isActive = p.id === `panel-${tabName}`;
+      p.classList.toggle('active', isActive);
+      p.style.display = isActive ? 'flex' : 'none';
+    });
 
     // Fix canvas sizes when panels become visible
-    if (name === 'whiteboard') {
+    if (tabName === 'whiteboard') {
       requestAnimationFrame(() => this._resizeWhiteboard());
     }
-    if (name === 'network' && this._onNetworkTabOpen) {
+    if (tabName === 'network' && this._onNetworkTabOpen) {
       requestAnimationFrame(() => this._onNetworkTabOpen());
     }
   }
@@ -765,7 +790,7 @@ class UI {
       if (!target) return;
       target.classList.remove('over');
       const peerId = target.dataset.peer;
-      const files  = Array.from(e.dataTransfer?.files || []);
+      const files = Array.from(e.dataTransfer?.files || []);
       if (files.length && this.onSendFiles) this.onSendFiles(files, peerId);
     });
   }
@@ -786,7 +811,7 @@ class UI {
   // ── CHAT INPUT ────────────────────────────────
   _bindChatInput() {
     const input = document.getElementById('chat-input');
-    const send  = document.getElementById('chat-send');
+    const send = document.getElementById('chat-send');
     if (!input || !send) return;
 
     let typingTimer = null;
@@ -823,9 +848,9 @@ class UI {
   // ── LIVE METRICS ──────────────────────────────
   updateLiveMetrics(m) {
     const s = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-    s('metric-up',      fmtSpeed(m.uploadSpeed || 0));
-    s('metric-down',    fmtSpeed(m.downloadSpeed || 0));
-    s('metric-peers',   m.peerCount || 0);
+    s('metric-up', fmtSpeed(m.uploadSpeed || 0));
+    s('metric-down', fmtSpeed(m.downloadSpeed || 0));
+    s('metric-peers', m.peerCount || 0);
     s('metric-latency', m.avgLatency ? `${m.avgLatency}ms` : '--');
   }
 }
@@ -833,21 +858,21 @@ class UI {
 // ── Helpers ──────────────────────────────────────
 function fmtBytes(b) {
   if (!b || b === 0) return '0 B';
-  const k = 1024, s = ['B','KB','MB','GB'];
+  const k = 1024, s = ['B', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(b) / Math.log(k));
   return (b / Math.pow(k, i)).toFixed(1) + ' ' + s[i];
 }
 function fmtSpeed(bps) { return fmtBytes(bps) + '/s'; }
 function fmtETA(s) {
   if (!isFinite(s) || s < 0) return '---';
-  return s < 60 ? `${Math.round(s)}s` : `${Math.floor(s/60)}m ${Math.round(s%60)}s`;
+  return s < 60 ? `${Math.round(s)}s` : `${Math.floor(s / 60)}m ${Math.round(s % 60)}s`;
 }
 function esc(s) {
   return String(s)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 window.UI = UI;
 window.fmtBytes = fmtBytes;
 window.fmtSpeed = fmtSpeed;
-window.fmtETA   = fmtETA;
+window.fmtETA = fmtETA;

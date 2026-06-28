@@ -5,7 +5,7 @@
   'use strict';
 
   let identity, peerManager, transferEngine, ui, netViz;
-  let speedTestActive  = false;
+  let speedTestActive = false;
   let xferBytesIn = 0, xferBytesOut = 0;
   let lastMetricTs = Date.now();
   let staticMode = false;
@@ -18,8 +18,8 @@
 
     peerManager = new PeerManager(identity.id, handleMessage);
     peerManager.setLocalInfo({
-      name:    identity.name,
-      type:    identity.type,
+      name: identity.name,
+      type: identity.type,
       palette: identity.palette,
     });
     staticMode = window.LANSHARE_STATIC === true
@@ -31,21 +31,21 @@
     transferEngine = new TransferEngine(peerManager);
 
     transferEngine.onProgress = (data) => {
-      if (data.direction === 'in')  xferBytesIn  += data.speed;
-      else                          xferBytesOut += data.speed;
+      if (data.direction === 'in') xferBytesIn += data.speed;
+      else xferBytesOut += data.speed;
 
       ui.updateTransfer({
         transferId: data.transferId,
-        peerId:     data.peerId,
-        progress:   data.progress,
-        speed:      data.speed,
-        eta:        data.eta,
+        peerId: data.peerId,
+        progress: data.progress,
+        speed: data.speed,
+        eta: data.eta,
       });
-      ui.logPacketEvent('chunk', null, `${Math.round((data.progress||0)*100)}%`);
+      ui.logPacketEvent('chunk', null, `${Math.round((data.progress || 0) * 100)}%`);
 
       if (netViz) {
         const from = data.direction === 'out' ? identity.id : data.peerId;
-        const to   = data.direction === 'out' ? data.peerId : identity.id;
+        const to = data.direction === 'out' ? data.peerId : identity.id;
         netViz.spawnPacket(from, to, identity.palette[0]);
       }
     };
@@ -75,11 +75,11 @@
       peerManager.sendChatMessage(text, target, isPrivate);
       // Add to own feed immediately (server won't echo back to us)
       ui.addChatMessage({
-        fromPeer:  identity.id,
-        name:      identity.name,
+        fromPeer: identity.id,
+        name: identity.name,
         text,
         timestamp: Date.now(),
-        private:   isPrivate,
+        private: isPrivate,
       });
     };
 
@@ -91,7 +91,7 @@
       ui.showSpeedTestRunning(peerId, true);
       ui.showNotification('⚡ Running speed test...', 'info');
       const latency = peerManager.getLatency(peerId) || null;
-      const result  = await transferEngine.runSpeedTest(peerId);
+      const result = await transferEngine.runSpeedTest(peerId);
       result.latency = latency;
       ui.addSpeedTestResult(peerId, result);
       speedTestActive = false;
@@ -99,14 +99,25 @@
 
     ui.onWhiteboardDraw = (event) => peerManager.sendWhiteboardEvent(event);
 
-    ui.onCreateCode = async () => {
+    ui.onCreateCode = async (targetPeerId = null) => {
       ui.setPairingStatus('Creating code...');
       try {
-        const offer = await peerManager.createManualOffer();
+        const offer = await peerManager.createManualOffer(targetPeerId);
         ui.setManualCode(offer);
-        ui.setPairingStatus('Code ready. Copy it to the other device.');
+        ui.setPairingStatus(targetPeerId
+          ? 'Reconnect code ready. Share this with the saved device.'
+          : 'Code ready. Copy it to the other device.');
       } catch (err) {
         ui.setPairingStatus(err.message || 'Could not create code.', true);
+      }
+    };
+
+    ui.onReconnectPeer = async (peerId) => {
+      ui.setPairingStatus('Preparing reconnect code...');
+      try {
+        await ui.onCreateCode(peerId);
+      } catch (err) {
+        ui.setPairingStatus(err.message || 'Could not prepare reconnect code.', true);
       }
     };
 
@@ -191,11 +202,11 @@
 
       case 'chat':
         ui.addChatMessage({
-          fromPeer:  msg.from,
-          name:      msg.name,
-          text:      msg.text,
+          fromPeer: msg.from,
+          name: msg.name,
+          text: msg.text,
           timestamp: msg.timestamp,
-          private:   msg.private,
+          private: msg.private,
         });
         if (msg.private) {
           ui.showNotification(`🔒 Private message from ${msg.name}`, 'info');
@@ -231,16 +242,16 @@
       ui.updateTransfer({
         transferId: prog.transferId,
         peerId,
-        progress:   prog.progress,
-        speed:      prog.speed,
-        eta:        prog.eta,
+        progress: prog.progress,
+        speed: prog.speed,
+        eta: prog.eta,
       });
     });
   }
 
   function updateMetrics() {
     const now = Date.now();
-    const dt  = (now - lastMetricTs) / 1000;
+    const dt = (now - lastMetricTs) / 1000;
     lastMetricTs = now;
 
     const latencies = [];
@@ -253,10 +264,10 @@
       : null;
 
     ui.updateLiveMetrics({
-      uploadSpeed:   xferBytesOut / dt,
-      downloadSpeed: xferBytesIn  / dt,
-      peerCount:     ui.peers.size,
-      avgLatency:    avg,
+      uploadSpeed: xferBytesOut / dt,
+      downloadSpeed: xferBytesIn / dt,
+      peerCount: ui.peers.size,
+      avgLatency: avg,
     });
 
     xferBytesIn = xferBytesOut = 0;
@@ -266,7 +277,7 @@
       const peerIds = Array.from(ui.peers.keys());
       const rp = peerIds[Math.floor(Math.random() * peerIds.length)];
       if (Math.random() < 0.5) netViz.spawnPacket(identity.id, rp, identity.palette[0] + '66');
-      else                     netViz.spawnPacket(rp, identity.id, identity.palette[1] + '66');
+      else netViz.spawnPacket(rp, identity.id, identity.palette[1] + '66');
     }
   }
 
