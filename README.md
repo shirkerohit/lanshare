@@ -5,6 +5,15 @@
 LanShare is an open-source AirDrop alternative that runs in the browser. It supports both a static HTML mode for GitHub Pages-style hosting and a LAN server mode for automatic device discovery. In both modes, file bytes transfer directly peer-to-peer using WebRTC DataChannels.
 
 ---
+<img width="851" height="320" alt="image" src="https://github.com/user-attachments/assets/cd30f7c7-495c-49f5-99b3-a5258da303a1" />
+
+<img width="847" height="452" alt="image" src="https://github.com/user-attachments/assets/42860ab4-b78d-462f-b015-643e7598ab44" />
+<img width="836" height="377" alt="image" src="https://github.com/user-attachments/assets/a166949a-4829-4c9c-894b-dc068e954aee" />
+<img width="848" height="259" alt="image" src="https://github.com/user-attachments/assets/54ba600e-3a42-4e3c-beb9-06431ba1349c" />
+<img width="852" height="305" alt="image" src="https://github.com/user-attachments/assets/9e1790a4-3a8a-4741-99c4-f9d45b3dd165" />
+<img width="751" height="413" alt="image" src="https://github.com/user-attachments/assets/e4f603d2-36a6-4bae-82e1-892abb068de4" />
+
+
 
 ## Features
 
