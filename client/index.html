@@ -122,6 +122,42 @@
           <div id="known-devices" class="known-devices hidden"></div>
         </section>
 
+        <section id="pairing-panel" class="pairing-panel hidden" aria-label="Pairing code">
+          <div class="pairing-qr-wrap">
+            <canvas id="pairing-qr" width="232" height="232" aria-label="Pairing QR code"></canvas>
+            <div id="pairing-qr-fallback" class="pairing-qr-fallback hidden">Code too large to scan — use the link or copy below.</div>
+          </div>
+          <a id="pairing-link" class="pairing-link" href="#">--</a>
+          <div id="pairing-grouped" class="pairing-grouped" tabindex="0" aria-label="Pairing code text"></div>
+          <div class="pairing-panel-actions">
+            <button id="pairing-copy" class="manual-btn" type="button">Copy</button>
+          </div>
+          <div class="pairing-receive">
+            <input id="pairing-input" type="text" placeholder="Paste a pairing code or link…"
+              autocomplete="off" aria-label="Paste a pairing code or link" />
+            <div id="pairing-error" class="pairing-error hidden" role="alert"></div>
+          </div>
+        </section>
+
+        <div id="pairing-requests" class="pairing-requests" aria-live="polite"></div>
+        <div id="pairing-pending" class="pairing-pending-wrap"></div>
+
+        <section id="join-panel" class="join-panel" aria-label="Connect a device">
+          <div class="join-head">
+            <div class="join-title">Connect a device</div>
+            <div class="join-sub">Scan with your phone camera — this page opens and the device appears below</div>
+          </div>
+          <div class="join-body">
+            <div class="join-qr-wrap">
+              <canvas id="join-qr" width="180" height="180" aria-label="Join QR code"></canvas>
+            </div>
+            <div class="join-side">
+              <a id="join-link" class="join-link" href="#">--</a>
+              <button id="join-copy" class="manual-btn" type="button">Copy link</button>
+            </div>
+          </div>
+        </section>
+
         <div id="no-peers" class="empty-state">
           <div class="empty-rings">
             <div class="ring r1"></div>
@@ -214,12 +250,53 @@
     </main>
 
     <div id="notifications" class="notifications"></div>
+    <div id="signaling-banner" class="signaling-banner hidden" role="status"></div>
+
+    <div id="confirmation-overlay" class="confirm-overlay hidden">
+      <div class="confirm-dialog" role="dialog" aria-modal="true" aria-label="Confirm pairing">
+        <div class="confirm-title">Confirm pairing</div>
+        <div id="confirmation-words" class="confirmation-words"></div>
+        <div class="confirm-note">Check the other device shows the same words before confirming.</div>
+        <div class="confirm-actions">
+          <button id="confirmation-accept" class="manual-btn" type="button">Codes match</button>
+          <button id="confirmation-skip" class="manual-link-btn" type="button">Skip</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="transfer-confirm-root"></div>
   </div>
 
   <script src="identity.js"></script>
   <script src="webrtc.js"></script>
+  <!--
+    Load order matters:
+
+      1. framing.js is a UMD module, so it must be loaded with no `module` in
+         scope for it to attach window.Framing.
+      2. transfer-core.js is authored as a CommonJS module so the test suite can
+         require() it. Give it a `module` object and lift its exports onto
+         window.TransferCore.
+      3. transfer.js resolves window.Framing and window.TransferCore and attaches
+         window.TransferEngine.
+  -->
+  <script src="framing.js"></script>
+  <script>
+    window.__lanshareCoreShim = (typeof window.module === 'undefined');
+    if (window.__lanshareCoreShim) window.module = { exports: {} };
+  </script>
+  <script src="transfer-core.js"></script>
+  <script>
+    if (window.__lanshareCoreShim) {
+      window.TransferCore = window.module.exports;
+      delete window.module;
+      delete window.__lanshareCoreShim;
+    }
+  </script>
   <script src="transfer.js"></script>
   <script src="network.js"></script>
+  <script src="qr.js"></script>
+  <script src="pairing-codec.js"></script>
   <script src="ui.js"></script>
   <script src="app.js"></script>
   <script>

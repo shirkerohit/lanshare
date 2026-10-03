@@ -12,6 +12,9 @@ class UI {
     this.staticMode = false;
     this.theme = 'dark';
     this.pairingExpanded = false;
+    this._pairingRaw = null;
+    this._pairingRequests = new Map();
+    this._pairingPending = new Map();
   }
 
   init(localIdentity) {
@@ -25,6 +28,8 @@ class UI {
     this._bindWhiteboard();
     this._bindInspectorClear();
     this._bindManualPairing();
+    this._bindPairingPanel();
+    this._bindJoinPanel();
     this._restoreManualState();
     this._applyPairingPanelState();
     this.switchTab(this.activePanel);
@@ -86,6 +91,12 @@ class UI {
     this.staticMode = enabled;
     const panel = document.getElementById('manual-pairing');
     if (panel) panel.classList.toggle('hidden', !enabled);
+    // The Pair button needs a signaling socket, which static mode has not.
+    // Gate it on the body so every card — present and future — follows.
+    if (document.body) document.body.classList.toggle('static-mode', !!enabled);
+    // The join panel is meaningless without a server to join: show it only
+    // in server mode. app.js fills it with the page URL on boot.
+    document.getElementById('join-panel')?.classList.toggle('hidden', !!enabled);
 
     const emptyTitle = document.querySelector('#no-peers .empty-title');
     const emptySub = document.querySelector('#no-peers .empty-sub');
@@ -407,7 +418,7 @@ class UI {
           <canvas class="peer-av" width="44" height="44" style="border-radius:50%"></canvas>
           <div class="card-peer-info">
             <div class="card-peer-name">${esc(peer.info.name)}</div>
-            <div class="card-peer-type">${typeIcon} ${typeLabel}</div>
+            <div class="card-peer-type">${typeIcon} ${esc(typeLabel)}</div>
           </div>
           <div class="conn-status">
             <div class="conn-dot connecting"></div>
@@ -430,23 +441,24 @@ class UI {
           </div>
         </div>
 
-        <div class="card-drop" data-peer="${peerId}">
+        <div class="card-drop" data-peer="${esc(peerId)}">
           <span class="drop-label">Drop files here or click to send</span>
-          <div class="xfer-area hidden" data-xfer="${peerId}">
+          <div class="xfer-area hidden" data-xfer="${esc(peerId)}">
             <div class="xfer-bar-wrap"><div class="xfer-bar-fill"></div></div>
             <div class="xfer-stats">
               <span class="xfer-pct">0%</span>
               <span class="xfer-spd">--</span>
               <span class="xfer-eta">--</span>
-              <button class="btn-cancel" data-cancel="${peerId}">✕</button>
+              <button class="btn-cancel" data-cancel="${esc(peerId)}">✕</button>
             </div>
           </div>
         </div>
 
         <div class="card-actions">
-          <button class="card-btn accent" data-action="send" data-peer="${peerId}">📁 Send File</button>
-          <button class="card-btn" data-action="msg" data-peer="${peerId}">💬 Message</button>
-          <button class="card-btn" data-action="speed" data-peer="${peerId}">⚡ Speed Test</button>
+          <button class="card-btn accent" data-action="pair" data-peer="${esc(peerId)}">🤝 Pair</button>
+          <button class="card-btn accent" data-action="send" data-peer="${esc(peerId)}">📁 Send File</button>
+          <button class="card-btn" data-action="msg" data-peer="${esc(peerId)}">💬 Message</button>
+          <button class="card-btn" data-action="speed" data-peer="${esc(peerId)}">⚡ Speed Test</button>
         </div>
       </div>
     `;
@@ -465,7 +477,10 @@ class UI {
     card.querySelectorAll('[data-action]').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const action = btn.dataset.action;
-        if (action === 'send') {
+        if (action === 'pair') {
+          if (this.onRequestPair) this.onRequestPair(peerId);
+          else this.showNotification('Pairing is not available in this mode.', 'warn');
+        } else if (action === 'send') {
           this.selectedPeer = peerId;
           document.getElementById('file-input')?.click();
         } else if (action === 'msg') {
@@ -648,7 +663,7 @@ class UI {
           <span class="st-metric-label">Mbps</span>
         </div>
         <div class="st-metric">
-          <span class="st-metric-val">${result.latency || '--'}</span>
+          <span class="st-metric-val">${esc(result.latency || '--')}</span>
           <span class="st-metric-label">ms Latency</span>
         </div>
         <div class="st-metric">
@@ -946,6 +961,434 @@ class UI {
     s('metric-down', fmtSpeed(m.downloadSpeed || 0));
     s('metric-peers', m.peerCount || 0);
     s('metric-latency', m.avgLatency ? `${m.avgLatency}ms` : '--');
+  }
+
+  // ── JOIN PANEL (server mode: scan to open this page) ──
+  // A QR encoding this page's own URL. A phone camera opens it, the phone
+  // joins the same server, and the device appears in the list. No pairing
+  // payload involved — the server does the introduction.
+  _bindJoinPanel() {
+    document.getElementById('join-copy')?.addEventListener('click', async () => {
+      const linkEl = document.getElementById('join-link');
+      const url = (linkEl && linkEl.textContent) || '';
+      if (!url || url === '--') return;
+      try {
+        if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(url);
+        else {
+          const ta = document.createElement('textarea');
+          ta.value = url;
+          document.body?.appendChild(ta);
+          ta.select?.();
+          document.execCommand('copy');
+          ta.remove?.();
+        }
+        this.showNotification('Join link copied.', 'success');
+      } catch {
+        this.showNotification('Copy failed — select the link manually.', 'warn');
+      }
+    });
+  }
+
+  showJoinPanel(url) {
+    const panel = document.getElementById('join-panel');
+    const canvas = document.getElementById('join-qr');
+    const linkEl = document.getElementById('join-link');
+    if (!panel || !url) return false;
+    panel.classList.remove('hidden');
+    if (linkEl) {
+      if (typeof linkEl.setAttribute === 'function') linkEl.setAttribute('href', url);
+      linkEl.textContent = url;
+    }
+    // A join URL is ~30 chars: a tiny code, always legible. Failure here
+    // hides the canvas but keeps the link + copy button working.
+    let drawn = false;
+    try {
+      const api = this._qrApi();
+      if (api && canvas && typeof api.encode === 'function' && typeof api.renderToCanvas === 'function') {
+        drawn = api.renderToCanvas(canvas, api.encode(url)) === true;
+      }
+    } catch (_) {
+      drawn = false;
+    }
+    if (canvas) canvas.classList.toggle('hidden', !drawn);
+    return true;
+  }
+
+  hideJoinPanel() {
+    document.getElementById('join-panel')?.classList.add('hidden');
+  }
+
+  // ── PAIRING PANEL (one payload, four renderings) ──
+  // All four forms (QR, link, copy value, grouped text) derive from a single
+  // raw payload string. Callbacks wired here for app.js to supply:
+  //   onPairingSubmit({kind, role, payload}) — paste/enter in the pairing input
+  //   onConfirmPairing() / onSkipPairing() — confirmation-code dialog buttons
+  _qrApi() {
+    try {
+      if (typeof window !== 'undefined' && window && window.LanQR) return window.LanQR;
+    } catch (_) { /* no window — fall through */ }
+    try {
+      if (typeof LanQR !== 'undefined' && LanQR) return LanQR;
+    } catch (_) { /* LanQR not loaded — fall through */ }
+    return null;
+  }
+
+  _groupPairingCode(raw) {
+    const groups = String(raw).match(/.{1,4}/g) || [];
+    return groups;
+  }
+
+  // Normalise pasted/typed input to a payload. Accepts a raw base64url
+  // payload or a full pairing link (fragment #o= offer / #a= answer).
+  // Returns {kind:'raw'|'link', role, payload}. Throws on invalid input and
+  // creates no state — the caller reports the error via reportPairingError.
+  acceptEitherForm(input) {
+    const compact = String(input === null || input === undefined ? '' : input).replace(/\s+/g, '');
+    if (!compact) throw new Error('Paste a pairing code or link first.');
+    const frag = compact.match(/#([oOaA])=([^#]*)/);
+    if (frag) {
+      const payload = frag[2];
+      if (payload && /^[A-Za-z0-9\-_]+$/.test(payload)) {
+        return {
+          kind: 'link',
+          role: frag[1].toLowerCase() === 'a' ? 'answer' : 'offer',
+          payload,
+        };
+      }
+      throw new Error('That link does not contain a valid pairing code.');
+    }
+    if (/^[A-Za-z0-9\-_]+$/.test(compact)) {
+      return { kind: 'raw', role: null, payload: compact };
+    }
+    throw new Error('That is not a valid pairing code. Paste the code or link from the other device.');
+  }
+
+  focusPairingInput() {
+    const el = document.getElementById('pairing-input');
+    if (el && typeof el.focus === 'function') el.focus();
+  }
+
+  reportPairingError(msg) {
+    const el = document.getElementById('pairing-error');
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.remove('hidden');
+  }
+
+  clearPairingError() {
+    const el = document.getElementById('pairing-error');
+    if (!el) return;
+    el.textContent = '';
+    el.classList.add('hidden');
+  }
+
+  // Render the four forms from ONE payload string. The QR is never allowed
+  // to disagree: it encodes `raw`, and when it cannot (QR_TOO_LARGE, or no
+  // canvas to draw on) the panel still shows link + copy + grouped text.
+  showPairingPanel(payload) {
+    const raw = payload && payload.raw;
+    if (typeof raw !== 'string' || !/^[A-Za-z0-9\-_]+$/.test(raw)) {
+      this.reportPairingError('Could not show the pairing code.');
+      return false;
+    }
+    this._pairingRaw = raw;
+    this.clearPairingError();
+
+    const panel = document.getElementById('pairing-panel');
+    if (panel) panel.classList.remove('hidden');
+
+    const href = (payload && payload.link) || ('#o=' + raw);
+    const linkEl = document.getElementById('pairing-link');
+    if (linkEl) {
+      if (typeof linkEl.setAttribute === 'function') linkEl.setAttribute('href', href);
+      linkEl.textContent = href;
+    }
+
+    const groupedEl = document.getElementById('pairing-grouped');
+    if (groupedEl) {
+      groupedEl.innerHTML = this._groupPairingCode(raw)
+        .map((g) => `<span class="pair-group">${esc(g)}</span>`)
+        .join('<span class="pair-sep" aria-hidden="true"></span>');
+    }
+
+    // QR last: failure here must never take down the other three forms.
+    const canvas = document.getElementById('pairing-qr');
+    const fallback = document.getElementById('pairing-qr-fallback');
+    let code = payload && payload.qr ? payload.qr : null;
+    if (!code) {
+      const api = this._qrApi();
+      if (api) {
+        try {
+          code = api.encode(raw);
+        } catch (err) {
+          code = null;
+          if (!err || err.code !== 'QR_TOO_LARGE') {
+            this.reportPairingError('Could not render the QR code — use the link or copy below.');
+          }
+        }
+      }
+    }
+    let drawn = false;
+    if (code) {
+      const api = this._qrApi();
+      if (api && typeof api.renderToCanvas === 'function') {
+        try {
+          drawn = api.renderToCanvas(canvas, code) === true;
+        } catch (_) {
+          drawn = false;
+        }
+      }
+    }
+    if (canvas) canvas.classList.toggle('hidden', !drawn);
+    if (fallback) fallback.classList.toggle('hidden', drawn);
+
+    this.focusPairingInput();
+    return true;
+  }
+
+  async copyPairingCode() {
+    const raw = this._pairingRaw;
+    if (!raw) return false;
+    let ok = false;
+    try {
+      const nav = (typeof navigator !== 'undefined') ? navigator : null;
+      if (nav && nav.clipboard && typeof nav.clipboard.writeText === 'function') {
+        await nav.clipboard.writeText(raw);
+        ok = true;
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = raw;
+        if (document.body && typeof document.body.appendChild === 'function') {
+          document.body.appendChild(ta);
+          if (typeof ta.select === 'function') ta.select();
+          if (typeof document.execCommand === 'function') document.execCommand('copy');
+          if (typeof ta.remove === 'function') ta.remove();
+          ok = true;
+        }
+      }
+    } catch (_) {
+      ok = false;
+    }
+    const btn = document.getElementById('pairing-copy');
+    if (ok) {
+      if (btn) {
+        const prev = btn.textContent;
+        btn.textContent = 'Copied';
+        setTimeout(() => { btn.textContent = prev; }, 1600);
+      }
+      this.showNotification('Pairing code copied.', 'success');
+    } else {
+      this.reportPairingError('Copy failed — select the grouped code manually.');
+    }
+    return ok;
+  }
+
+  _submitPairingInput(value) {
+    let parsed;
+    try {
+      parsed = this.acceptEitherForm(value);
+    } catch (err) {
+      this.reportPairingError(err && err.message ? err.message : 'That is not a valid pairing code.');
+      return;
+    }
+    this.clearPairingError();
+    if (this.onPairingSubmit) this.onPairingSubmit(parsed);
+    else if (this.onConnectCode) this.onConnectCode(parsed.payload);
+  }
+
+  _bindPairingPanel() {
+    document.getElementById('pairing-copy')?.addEventListener('click', () => this.copyPairingCode());
+
+    const input = document.getElementById('pairing-input');
+    if (input) {
+      // Paste auto-submits: no separate button press needed.
+      input.addEventListener('paste', (e) => {
+        let text = '';
+        try {
+          text = (e.clipboardData && e.clipboardData.getData('text'))
+            || (window.clipboardData && window.clipboardData.getData('Text'))
+            || '';
+        } catch (_) { text = ''; }
+        if (!text && typeof input.value === 'string') text = input.value;
+        // Let the pasted text land first, then submit it.
+        setTimeout(() => this._submitPairingInput(text || input.value), 0);
+      });
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          this._submitPairingInput(input.value);
+        }
+      });
+      input.addEventListener('input', () => this.clearPairingError());
+    }
+
+    document.getElementById('confirmation-accept')?.addEventListener('click', () => {
+      if (this.onConfirmPairing) this.onConfirmPairing();
+    });
+    document.getElementById('confirmation-skip')?.addEventListener('click', () => {
+      if (this.onSkipPairing) this.onSkipPairing();
+    });
+  }
+
+  // ── PAIRING REQUESTS (incoming) & PENDING (outgoing) ──
+  showPairingRequest({ requestId, peerId, info, onAccept, onDecline }) {
+    if (!requestId) return;
+    this.clearPairingRequest(requestId);
+    const host = document.getElementById('pairing-requests');
+    if (!host) return;
+    const name = (info && info.name) || peerId || 'Unknown device';
+    const el = document.createElement('div');
+    el.className = 'pairing-request';
+    el.innerHTML =
+      `<div class="pairing-request-text"><strong>${esc(name)}</strong> wants to pair.</div>` +
+      `<div class="pairing-request-actions">` +
+      `<button type="button" class="manual-btn" data-act="accept">Accept</button>` +
+      `<button type="button" class="manual-link-btn" data-act="decline">Decline</button>` +
+      `</div>`;
+    const acceptBtn = el.querySelector('[data-act="accept"]');
+    const declineBtn = el.querySelector('[data-act="decline"]');
+    if (acceptBtn && typeof acceptBtn.addEventListener === 'function') {
+      acceptBtn.addEventListener('click', () => { if (onAccept) onAccept(); });
+    }
+    if (declineBtn && typeof declineBtn.addEventListener === 'function') {
+      declineBtn.addEventListener('click', () => { if (onDecline) onDecline(); });
+    }
+    host.appendChild(el);
+    this._pairingRequests.set(requestId, { peerId, el, onAccept, onDecline });
+  }
+
+  clearPairingRequest(requestId) {
+    if (!requestId) return;
+    const entry = this._pairingRequests.get(requestId);
+    this._pairingRequests.delete(requestId);
+    if (entry && entry.el) {
+      if (typeof entry.el.remove === 'function') entry.el.remove();
+      else if (entry.el.parentNode && typeof entry.el.parentNode.removeChild === 'function') {
+        entry.el.parentNode.removeChild(entry.el);
+      }
+    }
+  }
+
+  showPairingPending(requestId, peerId) {
+    if (!requestId) return;
+    this.clearPairingPending(requestId);
+    const host = document.getElementById('pairing-pending');
+    if (!host) return;
+    const el = document.createElement('div');
+    el.className = 'pairing-pending';
+    el.innerHTML =
+      `<div class="pairing-pending-spinner" aria-hidden="true"></div>` +
+      `<div class="pairing-pending-text">Waiting for <strong>${esc(peerId || 'device')}</strong>…</div>`;
+    host.appendChild(el);
+    this._pairingPending.set(requestId, { peerId, el });
+  }
+
+  clearPairingPending(requestId) {
+    if (!requestId) return;
+    const entry = this._pairingPending.get(requestId);
+    this._pairingPending.delete(requestId);
+    if (entry && entry.el) {
+      if (typeof entry.el.remove === 'function') entry.el.remove();
+      else if (entry.el.parentNode && typeof entry.el.parentNode.removeChild === 'function') {
+        entry.el.parentNode.removeChild(entry.el);
+      }
+    }
+  }
+
+  // ── PAIRING CONFIRMATION CODE ──
+  // Both devices display the same short code; the dialog buttons call the
+  // callbacks app.js supplies (onConfirmPairing / onSkipPairing).
+  showConfirmationCode(words) {
+    const overlay = document.getElementById('confirmation-overlay');
+    const box = document.getElementById('confirmation-words');
+    if (!overlay || !box) return false;
+    if (!Array.isArray(words) || words.length !== 4 || words.some((w) => typeof w !== 'string' || !w)) {
+      return false;
+    }
+    box.innerHTML = words.map((w) => `<span class="confirm-word">${esc(w)}</span>`).join('');
+    overlay.classList.remove('hidden');
+    return true;
+  }
+
+  clearConfirmationCode() {
+    const overlay = document.getElementById('confirmation-overlay');
+    const box = document.getElementById('confirmation-words');
+    if (box) box.innerHTML = '';
+    if (overlay) overlay.classList.add('hidden');
+  }
+
+  // ── TRANSFER CONFIRMATIONS (Promise-based, blocking) ──
+  // Each call builds a FRESH dialog: only the buttons created by this call
+  // can settle its promise, so no pre-existing gesture can satisfy it.
+  _askTransferConfirm({ title, summary, confirmLabel }) {
+    const root = document.getElementById('transfer-confirm-root') || document.body;
+    const overlay = document.createElement('div');
+    overlay.className = 'transfer-confirm-overlay';
+    overlay.innerHTML =
+      `<div class="transfer-confirm-dialog" role="dialog" aria-modal="true">` +
+      `<div class="transfer-confirm-title">${esc(title)}</div>` +
+      `<div class="transfer-confirm-summary">${summary}</div>` +
+      `<div class="transfer-confirm-actions">` +
+      `<button type="button" class="manual-btn" data-act="confirm">${esc(confirmLabel)}</button>` +
+      `<button type="button" class="manual-link-btn" data-act="cancel">Cancel</button>` +
+      `</div></div>`;
+    return new Promise((resolve) => {
+      const done = (value) => {
+        if (typeof overlay.remove === 'function') overlay.remove();
+        else if (overlay.parentNode && typeof overlay.parentNode.removeChild === 'function') {
+          overlay.parentNode.removeChild(overlay);
+        }
+        resolve(value);
+      };
+      const okBtn = overlay.querySelector('[data-act="confirm"]');
+      const noBtn = overlay.querySelector('[data-act="cancel"]');
+      if (okBtn && typeof okBtn.addEventListener === 'function') {
+        okBtn.addEventListener('click', () => done(true));
+      }
+      if (noBtn && typeof noBtn.addEventListener === 'function') {
+        noBtn.addEventListener('click', () => done(false));
+      }
+      if (root && typeof root.appendChild === 'function') root.appendChild(overlay);
+      else done(false);
+    });
+  }
+
+  confirmSend({ fileName, fileSize, peerName }) {
+    const summary =
+      `<span class="transfer-confirm-file">${esc(fileName)}</span>` +
+      ` <span class="transfer-confirm-size">(${esc(fmtBytes(fileSize))})</span>` +
+      ` to <span class="transfer-confirm-peer">${esc(peerName)}</span>?`;
+    return this._askTransferConfirm({ title: 'Send this file?', summary, confirmLabel: 'Send' });
+  }
+
+  confirmIncoming({ fileName, fileSize, fromName }) {
+    const summary =
+      `<span class="transfer-confirm-file">${esc(fileName)}</span>` +
+      ` <span class="transfer-confirm-size">(${esc(fmtBytes(fileSize))})</span>` +
+      ` from <span class="transfer-confirm-peer">${esc(fromName)}</span>?`;
+    return this._askTransferConfirm({ title: 'Accept this file?', summary, confirmLabel: 'Accept' });
+  }
+
+  // ── SIGNALING BANNER / RECONNECT NOTICE ──
+  showSignalingBanner() {
+    const el = document.getElementById('signaling-banner');
+    if (!el) return;
+    el.textContent = 'Connection to the signaling server lost. Retrying…';
+    el.classList.remove('hidden');
+  }
+
+  clearSignalingBanner() {
+    const el = document.getElementById('signaling-banner');
+    if (!el) return;
+    el.textContent = '';
+    el.classList.add('hidden');
+  }
+
+  showReconnectNotice(peerName) {
+    const el = document.getElementById('signaling-banner');
+    if (!el) return;
+    el.textContent = `Connection to ${peerName} needs re-pairing. Create a new pairing code.`;
+    el.classList.remove('hidden');
   }
 }
 

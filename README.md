@@ -77,6 +77,10 @@ In both modes, the setup channel only exchanges WebRTC connection metadata. File
 6. Files stream as 256 KB binary chunks directly between browsers
 7. **The server, when used, sees zero file data**
 
+### Security
+
+Read [docs/threat-model.md](docs/threat-model.md) before deploying publicly. It states what each party can observe per hosting mode and the limits of the isolation boundary.
+
 ---
 
 ## Quick Start

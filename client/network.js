@@ -38,11 +38,15 @@ class NetworkVisualizer {
   }
 
   addNode(id, name, palette, isLocal = false) {
-    const cx = this.canvas.width / 2;
-    const cy = this.canvas.height / 2;
+    const w = Number.isFinite(this.canvas.width) ? this.canvas.width : 600;
+    const h = Number.isFinite(this.canvas.height) ? this.canvas.height : 400;
+    const cx = w / 2;
+    const cy = h / 2;
+    const safePalette = normalizePalette(palette);
+    const safeName = typeof name === 'string' ? name : String(name ?? id ?? 'peer');
 
     if (isLocal) {
-      this.nodes.set(id, { id, name, palette, isLocal: true, x: cx, y: cy, targetX: cx, targetY: cy, radius: 28, alpha: 1 });
+      this.nodes.set(id, { id, name: safeName, palette: safePalette, isLocal: true, x: cx, y: cy, targetX: cx, targetY: cy, radius: 28, alpha: 1 });
       return;
     }
 
@@ -50,11 +54,13 @@ class NetworkVisualizer {
     const count = this.nodes.size;
     const angle = (count / 8) * Math.PI * 2 + Math.random() * 0.5;
     const dist = 90 + Math.random() * 60;
-    const tx = cx + Math.cos(angle) * dist;
-    const ty = cy + Math.sin(angle) * dist;
+    let tx = cx + Math.cos(angle) * dist;
+    let ty = cy + Math.sin(angle) * dist;
+    if (!Number.isFinite(tx)) tx = cx;
+    if (!Number.isFinite(ty)) ty = cy;
 
     this.nodes.set(id, {
-      id, name, palette, isLocal: false,
+      id, name: safeName, palette: safePalette, isLocal: false,
       x: cx, y: cy, // start at center, animate out
       targetX: tx, targetY: ty,
       radius: 20,
@@ -64,26 +70,36 @@ class NetworkVisualizer {
   }
 
   removeNode(id) {
+    if (id == null) return;
     const node = this.nodes.get(id);
-    if (node) {
-      node.removing = true;
-      setTimeout(() => this.nodes.delete(id), 800);
-    }
+    if (!node) return;
+    node.removing = true;
+    setTimeout(() => this.nodes.delete(id), 800);
   }
 
   _repositionNodes() {
-    const cx = this.canvas.width / 2;
-    const cy = this.canvas.height / 2;
+    const w = Number.isFinite(this.canvas.width) ? this.canvas.width : 600;
+    const h = Number.isFinite(this.canvas.height) ? this.canvas.height : 400;
+    const cx = w / 2;
+    const cy = h / 2;
+    let remoteCount = 0;
+    for (const [, node] of this.nodes) {
+      if (!node.isLocal) remoteCount++;
+    }
     let i = 0;
     for (const [, node] of this.nodes) {
       if (node.isLocal) {
         node.x = cx; node.y = cy;
         node.targetX = cx; node.targetY = cy;
       } else {
-        const angle = (i / (this.nodes.size - 1)) * Math.PI * 2;
-        const dist = 100 + (this.canvas.width < 400 ? -20 : 20);
-        node.targetX = cx + Math.cos(angle) * dist;
-        node.targetY = cy + Math.sin(angle) * dist;
+        const angle = remoteCount > 0 ? (i / remoteCount) * Math.PI * 2 : 0;
+        const dist = 100 + (w < 400 ? -20 : 20);
+        const tx = cx + Math.cos(angle) * dist;
+        const ty = cy + Math.sin(angle) * dist;
+        node.targetX = Number.isFinite(tx) ? tx : cx;
+        node.targetY = Number.isFinite(ty) ? ty : cy;
+        if (!Number.isFinite(node.x)) node.x = cx;
+        if (!Number.isFinite(node.y)) node.y = cy;
         i++;
       }
     }
@@ -93,6 +109,8 @@ class NetworkVisualizer {
     const from = this.nodes.get(fromId);
     const to = this.nodes.get(toId);
     if (!from || !to) return;
+    if (!Number.isFinite(from.x) || !Number.isFinite(from.y)) return;
+    if (!Number.isFinite(to.x) || !Number.isFinite(to.y)) return;
 
     this.packets.push({
       x: from.x, y: from.y,
@@ -198,8 +216,8 @@ class NetworkVisualizer {
   _drawConnection(a, b) {
     const { ctx } = this;
     const grad = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
-    grad.addColorStop(0, withAlpha(a.palette?.[0] || '#00ffcc', 0.53));
-    grad.addColorStop(1, withAlpha(b.palette?.[0] || '#00ffcc', 0.27));
+    grad.addColorStop(0, withAlpha(normalizePalette(a.palette)[0], 0.53));
+    grad.addColorStop(1, withAlpha(normalizePalette(b.palette)[0], 0.27));
     ctx.beginPath();
     ctx.moveTo(a.x, a.y);
     ctx.lineTo(b.x, b.y);
@@ -212,31 +230,44 @@ class NetworkVisualizer {
 
   _drawNode(node) {
     const { ctx } = this;
-    const { x, y, radius, alpha, palette, isLocal, name, pulsePhase } = node;
+    // Repair any non-finite state in place so a bad value can never persist.
+    const cx = Number.isFinite(this.canvas.width) ? this.canvas.width / 2 : 300;
+    const cy = Number.isFinite(this.canvas.height) ? this.canvas.height / 2 : 200;
+    if (!Number.isFinite(node.x)) node.x = cx;
+    if (!Number.isFinite(node.y)) node.y = cy;
+    if (!Number.isFinite(node.targetX)) node.targetX = cx;
+    if (!Number.isFinite(node.targetY)) node.targetY = cy;
+    if (!Number.isFinite(node.radius)) node.radius = node.isLocal ? 28 : 20;
+    if (!Number.isFinite(node.alpha)) node.alpha = 1;
+    const safePalette = normalizePalette(node.palette);
+    node.palette = safePalette;
+    const safeName = typeof node.name === 'string' ? node.name : String(node.name ?? node.id ?? '');
+    const { x, y, radius, alpha, isLocal } = node;
+    const pulsePhase = Number.isFinite(node.pulsePhase) ? node.pulsePhase : 0;
 
     ctx.globalAlpha = alpha;
 
     // Pulse ring for remote nodes
-    if (!isLocal && pulsePhase !== undefined) {
+    if (!isLocal && node.pulsePhase !== undefined) {
       const pulse = Math.sin(this.time * 0.04 + pulsePhase) * 0.5 + 0.5;
       ctx.beginPath();
       ctx.arc(x, y, radius + 6 + pulse * 4, 0, Math.PI * 2);
-      ctx.strokeStyle = withAlpha(palette?.[0] || '#00ffcc', 0.27);
+      ctx.strokeStyle = withAlpha(safePalette[0], 0.27);
       ctx.lineWidth = 1;
       ctx.stroke();
     }
 
     // Node circle
     const grad = ctx.createRadialGradient(x - radius * 0.3, y - radius * 0.3, 0, x, y, radius);
-    grad.addColorStop(0, palette?.[0] || '#00ffcc');
-    grad.addColorStop(1, palette?.[1] || '#004466');
+    grad.addColorStop(0, safePalette[0]);
+    grad.addColorStop(1, safePalette[1]);
     ctx.beginPath();
     ctx.arc(x, y, radius, 0, Math.PI * 2);
     ctx.fillStyle = grad;
     ctx.fill();
 
     // Border
-    ctx.strokeStyle = palette?.[0] || '#00ffcc';
+    ctx.strokeStyle = safePalette[0];
     ctx.lineWidth = isLocal ? 2 : 1.5;
     ctx.stroke();
 
@@ -244,10 +275,10 @@ class NetworkVisualizer {
     ctx.fillStyle = '#ffffff';
     ctx.font = `${isLocal ? 11 : 9}px "Space Mono", monospace`;
     ctx.textAlign = 'center';
-    ctx.fillText(name.substr(0, 12), x, y + radius + 14);
+    ctx.fillText(safeName.substr(0, 12), x, y + radius + 14);
 
     if (isLocal) {
-      ctx.fillStyle = palette?.[0] || '#00ffcc';
+      ctx.fillStyle = safePalette[0];
       ctx.font = '8px monospace';
       ctx.fillText('YOU', x, y + 3);
     }
@@ -258,6 +289,20 @@ class NetworkVisualizer {
 
 function lerp(a, b, t) {
   return a + (b - a) * t;
+}
+
+function isColorString(value) {
+  return typeof value === 'string' && value.trim().length >= 2;
+}
+
+function normalizePalette(palette) {
+  const d0 = '#00ffcc';
+  const d1 = '#004466';
+  if (!Array.isArray(palette)) return [d0, d1];
+  return [
+    isColorString(palette[0]) ? palette[0] : d0,
+    isColorString(palette[1]) ? palette[1] : d1,
+  ];
 }
 
 function withAlpha(color, alpha) {

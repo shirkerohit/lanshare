@@ -10,8 +10,12 @@ const files = [
   'styles.css',
   'identity.js',
   'webrtc.js',
+  'framing.js',
+  'transfer-core.js',
   'transfer.js',
   'network.js',
+  'qr.js',
+  'pairing-codec.js',
   'ui.js',
   'app.js',
 ];

@@ -17,9 +17,9 @@ Device A ◀═══════ WebRTC DataChannel ═══════▶ De
 
 ### Server (`server/server.js`)
 - Minimal Node.js HTTP + WebSocket server
-- Tracks peer registry (id → ws connection)
+- Tracks peer registry (id → ws connection, with network scope)
 - Routes SDP offers/answers and ICE candidates
-- Broadcasts peer join/leave events
+- Broadcasts peer join/leave events (within the sender's network scope only — see `docs/threat-model.md`)
 - **Zero file data** passes through server
 
 ### Client Modules

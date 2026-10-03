@@ -996,6 +996,75 @@ body {
   background: var(--teal-dim);
 }
 
+/* Pair needs a signaling socket; static/manual mode pairs by code instead. */
+body.static-mode [data-action="pair"] {
+  display: none;
+}
+
+/* ── JOIN PANEL (server mode: scan to open this page) ── */
+.join-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  margin-bottom: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-med);
+  border-radius: var(--r-lg);
+  flex-shrink: 0;
+}
+
+/* The join panel is meaningless without a server to join. */
+body.static-mode .join-panel {
+  display: none;
+}
+
+.join-title {
+  font-weight: 600;
+}
+
+.join-sub {
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+.join-body {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+
+.join-qr-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  background: #ffffff;
+  border-radius: var(--r-md);
+  flex-shrink: 0;
+}
+
+#join-qr {
+  display: block;
+  width: 180px;
+  height: 180px;
+}
+
+.join-side {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.join-link {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--teal);
+  word-break: break-all;
+}
+
 /* ── NETWORK VIZ ── */
 .viz-container {
   flex: 1;
@@ -1631,4 +1700,253 @@ input:focus-visible {
 
 .hidden {
   display: none !important;
+}
+
+/* ── PAIRING PANEL (multi-form presentation) ── */
+.pairing-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  margin-bottom: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-med);
+  border-radius: var(--r-lg);
+  flex-shrink: 0;
+}
+
+.pairing-qr-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  background: #ffffff;
+  border-radius: var(--r-md);
+}
+
+#pairing-qr {
+  display: block;
+  width: 232px;
+  height: 232px;
+}
+
+.pairing-qr-fallback {
+  color: #334155;
+  font-size: 0.78rem;
+  text-align: center;
+  max-width: 260px;
+}
+
+.pairing-link {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--teal);
+  word-break: break-all;
+  text-align: center;
+}
+
+.pairing-grouped {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  color: var(--text-hi);
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 10px 12px;
+  user-select: all;
+  overflow-wrap: break-word;
+}
+
+.pair-group {
+  white-space: nowrap;
+}
+
+.pair-sep {
+  display: inline-block;
+  width: 8px;
+}
+
+.pairing-panel-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.pairing-receive input {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border-med);
+  border-radius: var(--r-sm);
+  color: var(--text-hi);
+  padding: 9px 12px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  outline: none;
+}
+
+.pairing-receive input:focus {
+  border-color: var(--border-focus);
+}
+
+.pairing-error {
+  margin-top: 6px;
+  font-size: 0.72rem;
+  color: var(--red);
+}
+
+/* ── PAIRING REQUESTS / PENDING ── */
+.pairing-requests,
+.pairing-pending-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.pairing-request,
+.pairing-pending {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-med);
+  border-radius: var(--r-md);
+  font-size: 0.8rem;
+}
+
+.pairing-request-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.pairing-pending-spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--border-med);
+  border-top-color: var(--teal);
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+/* ── CONFIRMATION CODE ── */
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(4, 8, 14, 0.7);
+  z-index: 1002;
+  padding: 20px;
+}
+
+.confirm-dialog {
+  background: var(--bg-card);
+  border: 1px solid var(--border-med);
+  border-radius: var(--r-lg);
+  padding: 20px;
+  max-width: 360px;
+  width: 100%;
+  text-align: center;
+}
+
+.confirm-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.confirmation-words {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.confirm-word {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--teal);
+  background: var(--teal-glow);
+  border: 1px solid var(--border-med);
+  border-radius: var(--r-sm);
+  padding: 6px 10px;
+}
+
+.confirm-note {
+  font-size: 0.72rem;
+  color: var(--text-lo);
+  margin-bottom: 14px;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+/* ── TRANSFER CONFIRM MODAL ── */
+.transfer-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(4, 8, 14, 0.7);
+  z-index: 1003;
+  padding: 20px;
+}
+
+.transfer-confirm-dialog {
+  background: var(--bg-card);
+  border: 1px solid var(--border-med);
+  border-radius: var(--r-lg);
+  padding: 20px;
+  max-width: 380px;
+  width: 100%;
+}
+
+.transfer-confirm-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.transfer-confirm-summary {
+  font-size: 0.8rem;
+  color: var(--text-mid);
+  margin-bottom: 16px;
+  overflow-wrap: break-word;
+}
+
+.transfer-confirm-file {
+  color: var(--text-hi);
+  font-weight: 600;
+}
+
+.transfer-confirm-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* ── SIGNALING BANNER ── */
+.signaling-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 8px 16px;
+  text-align: center;
+  font-size: 0.76rem;
+  background: rgba(245, 158, 11, 0.14);
+  border-bottom: 1px solid rgba(245, 158, 11, 0.3);
+  color: #fcd34d;
+  z-index: 1004;
 }

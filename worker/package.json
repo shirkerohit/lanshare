@@ -1,0 +1,12 @@
+{
+  "name": "lanshare-signaling-relay",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Hosted LanShare signaling relay (Cloudflare Worker + Durable Object, hibernating WebSockets). Deploys independently of the Pages bundle.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "node ../tests/run.js worker"
+  }
+}
